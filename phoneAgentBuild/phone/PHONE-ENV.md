@@ -46,6 +46,14 @@ Rules that follow:
    `relay/to-laptop/` — NOT `.memory/`, which is laptop-local. Read
    `relay/README.md` before Phase 0.
 
+## Companion setup docs (this directory)
+
+- `SETUP-AUTH.md` — generate an on-device SSH key / PAT to clone private
+  repos. Do this first; the clone commands above and tether both need it.
+- `TETHER-SETUP.md` — wire up `tether` in the proot so you can delegate
+  parallel sub-work to Gemini (optional, but recommended for bulk/mechanical
+  or verification tasks).
+
 ## Verifying each phase
 
 Each phase prompt has a Test Procedure. Tests that need hardware

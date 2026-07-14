@@ -11,3 +11,18 @@ __pycache__/
 models/
 *.gguf
 *.onnx
+
+# secrets — NEVER commit. Keys/tokens live on-device, not in the repo.
+.ssh/
+id_*
+*.pem
+*_rsa
+*_ed25519
+*.key
+.netrc
+.git-credentials
+token
+**/token
+*.token
+.env
+.env.*
