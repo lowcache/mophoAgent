@@ -60,3 +60,27 @@ commit.
    the tailnet IP is not a secret; the bearer token IS, reference its path
    instead).
 5. Commit messages for relay-only commits: `relay: <type> <slug>`.
+
+## Branch model
+
+Three branches so the two agents never commit over each other:
+
+| branch | owner | contents |
+|---|---|---|
+| `main` | integration | verified, phase-complete work; merges only |
+| `phone` | claude-phone | phases 0–7 work + its relay messages |
+| `laptop` | claude-laptop | phase 8 / DECISIONS / design work + its relay messages |
+
+Workflow:
+
+1. Work and commit **only on your own branch**, including your relay
+   messages. Push after every relay write and every phase commit.
+2. Read the other side without switching branches:
+   `git fetch origin && git log origin/<their-branch> --oneline -- relay/`
+   then `git show origin/<their-branch>:relay/to-<you>/<file>`.
+3. Phase-complete work is merged into `main` by **claude-laptop** (it owns
+   integration): merge `phone` → `main`, resolve, push. claude-phone rebases
+   its branch on `main` after each integration merge
+   (`git pull --rebase origin main` while on `phone`).
+4. Never force-push `main`. Force-pushing your own branch is allowed only
+   before it has been merged.
