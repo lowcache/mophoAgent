@@ -16,10 +16,14 @@ under Termux. You build and maintain the phone MCP server described by
 
 Rules that follow:
 
-1. **Code lives in native Termux home**: `~/phone-agent` (git repo), reached
-   from proot via the bind mount (`proot-distro login --bind
-   /data/data/com.termux/files/home:/termux` or your existing bind). Edit
-   there; never copy code into the proot rootfs.
+1. **Code lives in native Termux home, inside the cloned repo.** Clone
+   mophoAgent to `~/mophoAgent` in the **native Termux home** (reached from
+   proot via the bind mount, e.g. `proot-distro login --bind
+   /data/data/com.termux/files/home:/termux`). Product code goes in
+   `~/mophoAgent/phone-agent/` on the **`phone` branch**; symlink
+   `~/phone-agent -> ~/mophoAgent/phone-agent` so the phase file-trees
+   resolve. Edit through the bind; never copy code into the proot rootfs.
+   Phase 0 has the exact clone/checkout/symlink commands.
 2. **Run and test with Termux python**, not proot python. From proot, exec
    through the bind: `/data/data/com.termux/files/usr/bin/python`. If a
    pip package needs to build native wheels, install it from a native Termux
