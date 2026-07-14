@@ -1,0 +1,13 @@
+# machine-local agent scaffolding (regenerated per host by agent-scaffold)
+.model/
+.claude/settings.local.json
+
+# python / build artifacts (phone-side)
+.venv/
+__pycache__/
+*.pyc
+
+# model weights are downloaded, never committed
+models/
+*.gguf
+*.onnx
