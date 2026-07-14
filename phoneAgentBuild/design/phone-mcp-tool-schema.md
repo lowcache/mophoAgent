@@ -120,7 +120,7 @@ Errors:
 
 #### `phone.npu.transcribe`
 
-Run on-device Whisper on an audio file via Qualcomm SNPE / QNN or llama.cpp with whisper backend on NPU.
+Run on-device Whisper on an audio file via whisper.cpp `whisper-server` (CPU baseline per D5; QNN/NPU is a stretch goal).
 
 Input:
 ```json
@@ -151,7 +151,7 @@ Errors:
 
 #### `phone.npu.ocr`
 
-Run on-device OCR on an image via NPU (ML Kit or custom ONNX model compiled for QNN).
+Run on-device OCR on an image via onnxruntime (CPU EP baseline per D5; QNN EP is a stretch goal).
 
 Input:
 ```json
@@ -420,11 +420,11 @@ Output:
 
 Suspend or kill heavy background apps to free RAM for inference. Uses rish `am kill` and `cmd activity`.
 
-Input:
+Input (`aggressiveness` is one of `normal` | `aggressive`):
 ```json
 {
   "target_free_mb": 2048,
-  "aggressiveness": "normal"  // normal | aggressive
+  "aggressiveness": "normal"
 }
 ```
 
