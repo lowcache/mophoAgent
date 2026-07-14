@@ -22,7 +22,7 @@ Phase 0 (server), Phase 1 (NPU), Phase 5 (notify), Phase 6 (queue for offline de
 ## File Structure
 
 ```
-~/.config/phone-agent/
+~/phone-agent/
 ├── scheduler/
 │   ├── __init__.py
 │   ├── engine.py                 # NEW: scheduler event loop
@@ -50,7 +50,7 @@ Phase 0 (server), Phase 1 (NPU), Phase 5 (notify), Phase 6 (queue for offline de
     {
       "id": "flake_check",
       "name": "Flake Update Check",
-      "description": "Check nixpkgs for available updates. Pings the laptop if online, otherwise checks the GitHub API directly.",
+      "description": "Poll the GitHub API for nixpkgs channel movement (no nix on the phone). Result is queued for the laptop agent.",
       "trigger": {
         "type": "interval",
         "interval_hours": 6,
@@ -58,7 +58,7 @@ Phase 0 (server), Phase 1 (NPU), Phase 5 (notify), Phase 6 (queue for offline de
       },
       "action": {
         "type": "shell",
-        "command": "cd ~/volnixos && nix flake lock --check 2>&1 | tail -20",
+        "command": "curl -s -H 'Accept: application/vnd.github+json' https://api.github.com/repos/NixOS/nixpkgs/commits/nixos-unstable | jq -r .sha",
         "laptop_required": false
       },
       "conditions": {
@@ -71,15 +71,14 @@ Phase 0 (server), Phase 1 (NPU), Phase 5 (notify), Phase 6 (queue for offline de
     {
       "id": "model_preload",
       "name": "Ollama Model Preload",
-      "description": "Check if the laptop's Ollama models are up to date. If not, queue a download for next laptop wake.",
+      "description": "List the laptop's Ollama models via its HTTP API (D3: no SSH). If unreachable, queue a check request for next laptop wake.",
       "trigger": {
-        "type": "interval",
-        "interval_hours": 24,
-        "offset_minutes": 120  # Offset from midnight = 2:00 AM
+        "type": "cron",
+        "expression": "0 2 * * *"
       },
       "action": {
         "type": "shell",
-        "command": "ping -c 1 -W 2 volnix && ssh volnix 'ollama list' 2>&1",
+        "command": "curl -sf --max-time 10 http://volnix.<tailnet>.ts.net:11434/api/tags",
         "laptop_required": true
       },
       "conditions": {
@@ -93,15 +92,15 @@ Phase 0 (server), Phase 1 (NPU), Phase 5 (notify), Phase 6 (queue for offline de
     {
       "id": "health_check",
       "name": "Laptop Health Check",
-      "description": "Ping the laptop's MCP server to verify it's alive. Log uptime and service status.",
+      "description": "Probe the laptop's Ollama HTTP endpoint to verify it's alive (the phone cannot MCP-call the laptop). Log reachability.",
       "trigger": {
         "type": "interval",
         "interval_minutes": 30
       },
       "action": {
-        "type": "mcp_tool",
-        "tool": "phone.system.ping",
-        "target": "laptop"
+        "type": "shell",
+        "command": "curl -sf --max-time 5 http://volnix.<tailnet>.ts.net:11434/api/version",
+        "laptop_required": true
       },
       "conditions": {
         "battery_min_pct": 10
@@ -159,8 +158,8 @@ class Trigger:
 class IntervalTrigger(Trigger):
     type = "interval"
     interval_seconds: int           # Base interval
-    offset_seconds: int = 0         # Random offset to avoid thundering herd
-    last_fired: float = 0           # Unix timestamp
+    offset_seconds: int = 0         # One-time phase offset: seeds the FIRST firing only
+    last_fired: float = 0           # Unix timestamp; initialized to now + offset_seconds - interval_seconds
 
 @dataclass
 class CronTrigger(Trigger):
@@ -182,7 +181,8 @@ class TriggerManager:
         fired = []
         for task_id, trigger in self.triggers.items():
             if trigger.type == "interval":
-                if now - trigger.last_fired >= trigger.interval_seconds + trigger.offset_seconds:
+                # offset_seconds only seeds the initial last_fired; steady state is pure interval
+                if now - trigger.last_fired >= trigger.interval_seconds:
                     fired.append(task_id)
                     trigger.last_fired = now
             elif trigger.type == "cron":
@@ -229,7 +229,7 @@ class SchedulerEngine:
                 # 3. Execute task
                 try:
                     result = await self._execute_task(task)
-                    self._log_result(task_id, result)
+                    self._log_result(task_id, result)  # writes JSON to ~/ingest/processed/scheduled/
 
                     # 4. Notify on conditions
                     if result["status"] == "success" and "success" in task.notify_on:
@@ -310,7 +310,7 @@ class SchedulerEngine:
    ```
    → Shows enabled tasks with next fire times
 
-3. Test a fast task: Set `log_cleanup` interval to 1 minute. Wait 60s. Verify it fires (check `~/ingest/errors/` log).
+3. Test a fast task: Set `log_cleanup` interval to 1 minute. Wait 60s. Verify it fires (result JSON in `~/ingest/processed/scheduled/`).
 
 4. Test condition skip: Set battery_min_pct to 90. Disconnect charger. Verify task is skipped.
 
@@ -321,7 +321,7 @@ class SchedulerEngine:
 - [ ] Scheduler starts and runs tasks on their configured intervals
 - [ ] Conditions (battery, charging, wifi_only) correctly gate task execution
 - [ ] Tasks that require laptop are skipped when laptop is offline
-- [ ] Results are logged to `~/ingest/scheduled/` directory
+- [ ] Results are logged to `~/ingest/processed/scheduled/` directory
 - [ ] Notifications fire on success/failure based on task config
 - [ ] `phone.scheduler.start/stop/status` work correctly
 - [ ] `phone.scheduler.add_task` persists new task across server restart
@@ -346,6 +346,7 @@ class SchedulerEngine:
 git add -A
 git commit -m "feat(phone-mcp): subconscious scheduler with event-driven task loop"
 git tag phone-mcp-phase-7
+git push origin phone
 ```
 
 Rollback: `git revert HEAD`. Scheduler reverts. All other functionality unaffected.

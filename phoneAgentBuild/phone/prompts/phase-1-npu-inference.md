@@ -20,7 +20,7 @@ Phase 0 is fully built, tested, and committed. The MCP server skeleton is runnin
 ## File Structure
 
 ```
-~/.config/phone-agent/
+~/phone-agent/
 ├── main.py                          # ← from Phase 0 (modified: register new tools)
 ├── tool_registry.py                 # ← from Phase 0 (modified: async dispatch)
 ├── tools/
@@ -350,6 +350,7 @@ pkg install python numpy openblas llama-cpp || echo "llama-cpp not in pkg, build
 git add -A
 git commit -m "feat(phone-mcp): NPU inference — whisper, ocr, embed, classify"
 git tag phone-mcp-phase-1
+git push origin phone
 ```
 
 Rollback: `git revert HEAD`. All 5 tools disappear. Phase 0 skeleton still works.

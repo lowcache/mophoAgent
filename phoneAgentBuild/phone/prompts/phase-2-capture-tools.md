@@ -13,14 +13,14 @@ Four MCP tools that capture raw input from the phone's hardware: microphone audi
 
 ## Prerequisites
 
-Phase 0 + Phase 1 built, tested, committed. NPU inference layer functional.
+Phase 0 + Phase 1 built, tested, committed. Inference layer functional.
 
 ---
 
 ## File Structure
 
 ```
-~/.config/phone-agent/
+~/phone-agent/
 ├── tools/
 │   ├── capture_audio.py             # NEW: phone.capture.audio
 │   ├── capture_image.py             # NEW: phone.capture.image
@@ -28,7 +28,7 @@ Phase 0 + Phase 1 built, tested, committed. NPU inference layer functional.
 │   ├── capture_share.py             # NEW: phone.capture.share
 ├── vad/
 │   ├── __init__.py
-│   ├── gate.py                      # NEW: Silero VAD gate
+│   ├── gate.py                      # NEW: Silero VAD trim/gate
 │   └── model.silero                 # Silero VAD model file
 ├── ingest/
 │   ├── store.py                     # NEW: file naming + writer
@@ -46,6 +46,7 @@ Phase 0 + Phase 1 built, tested, committed. NPU inference layer functional.
 ├── images/
 ├── screenshots/
 ├── shares/
+│   └── spool/           (termux-url-opener writes here)
 ├── processed/           (future, Phase 3)
 │   ├── transcripts/
 │   ├── ocr/
@@ -53,6 +54,7 @@ Phase 0 + Phase 1 built, tested, committed. NPU inference layer functional.
 ├── staged/              (future, Phase 3)
 └── queue/               (future, Phase 6)
     ├── pending/
+    ├── delivering/
     ├── delivered/
     └── failed/
 ```
@@ -65,9 +67,11 @@ Phase 0 + Phase 1 built, tested, committed. NPU inference layer functional.
 
 ```python
 INGEST_BASE = Path.home() / "ingest"
-SUBDIRS = ["audio", "images", "screenshots", "shares",
+SUBDIRS = ["audio", "images", "screenshots", "shares", "shares/spool",
            "processed/transcripts", "processed/ocr", "processed/summaries",
-           "staged", "queue/pending", "queue/delivered", "queue/failed", "errors"]
+           "processed/scheduled", "staged",
+           "queue/pending", "queue/delivering", "queue/delivered",
+           "queue/failed", "errors"]
 
 def ensure_ingest_dirs():
     for subdir in SUBDIRS:
@@ -98,7 +102,7 @@ def write_capture(source_type: str, extension: str, data: bytes) -> Path:
 
 ### tools/capture_audio.py — `phone.capture.audio`
 
-Record from the phone's microphone with VAD gating.
+Record from the phone's microphone, then VAD-trim the result.
 
 **Input:**
 ```json
@@ -120,34 +124,32 @@ Record from the phone's microphone with VAD gating.
 }
 ```
 
-**Implementation:**
-1. Use Python `sounddevice` or `pyaudio` to capture from microphone (requires `termux-microphone-record` via subprocess as fallback)
-2. Feed raw audio into VAD gate (Silero VAD, runs on CPU — lightweight, <5% CPU)
-3. VAD gate yields: `[speech (timestamp), silence, speech, silence, ...]`
-4. Stop recording when:
-   - Silence > 500ms after a speech segment (END OF UTTERANCE), OR
-   - `max_duration_sec` reached (HARD CAP)
-5. Write WAV file via `soundfile.write()` (16-bit PCM, mono)
-6. Compute peak level and duration
+**Implementation (baseline: record-then-trim):**
+1. Record with `termux-microphone-record -f {tmp_path} -l {max_duration_sec} -r {sample_rate} -c 1` (`termux-microphone-record -q` stops early if needed). This is file-based — Termux does not reliably expose a live mic stream to Python.
+2. Load the finished WAV, run Silero VAD over it to find speech spans.
+3. Trim leading/trailing silence around the detected speech span (with `speech_pad_ms` padding); write the trimmed WAV via `soundfile` (16-bit PCM, mono) into `~/ingest/audio/`.
+4. If no speech was detected at all → delete the recording, return `VAD_TIMEOUT`.
+5. Compute peak level and duration from the trimmed audio.
 
-**VAD Gate (vad/gate.py):**
+**Optional upgrade (NOT baseline):** live VAD gating that stops recording at end-of-utterance requires a streaming mic source (pulseaudio in Termux). Attempt only after the record-then-trim path is committed; keep the trim path as fallback.
 
-Silero VAD. Uses the pre-trained ONNX model. Runs on CPU (negligible cost, <10ms per 30ms frame).
+**VAD (vad/gate.py):**
+
+Silero VAD, pre-trained ONNX model, runs on CPU (<10ms per 30ms frame).
 
 ```python
 class VADGate:
     def __init__(self, model_path: str, threshold: float = 0.5, mode: int = 3):
         # mode 3 = most aggressive filtering (best for clean speech)
 
-    def is_speech(self, chunk: np.ndarray) -> bool:
-        # Returns True if chunk contains speech
-        # Processes 30ms frames, returns smoothed decision over last 5 frames
+    def speech_spans(self, audio: np.ndarray, sample_rate: int) -> list[tuple[float, float]]:
+        # Returns [(start_sec, end_sec), ...] speech segments over the whole clip
 ```
 
 **Error states:**
 - `MICROPHONE_BUSY` — termux-microphone-record returns "Device or resource busy"
-- `VAD_TIMEOUT` — max_duration_sec reached with no speech detected → delete raw audio, return empty
-- `PERMISSION_DENIED` — microphone permission not granted → guide user to grant via `termux-setup-storage`
+- `VAD_TIMEOUT` — recording contained no detected speech → delete raw audio, return empty
+- `PERMISSION_DENIED` — microphone permission not granted to the **Termux:API app** (Android Settings → Apps → Termux:API → Permissions → Microphone). This is an Android app permission — `termux-setup-storage` is unrelated.
 
 ### tools/capture_image.py — `phone.capture.image`
 
@@ -177,16 +179,16 @@ Capture a single frame from the camera.
   ```bash
   termux-camera-photo -c {camera_id} {output_path}
   ```
-- Parse EXIF data from the resulting JPEG using `PIL.Image._getexif()`
+- Parse EXIF data from the resulting JPEG using `PIL.Image.getexif()` (public API — not `_getexif()`)
 - Copy the file into the ingest directory with the correct filename
 
 **Error states:**
 - `CAMERA_BUSY` — camera in use by another app
-- `PERMISSION_DENIED` — camera permission not granted
+- `PERMISSION_DENIED` — camera permission not granted (Termux:API app permission)
 
 ### tools/capture_screenshot.py — `phone.capture.screenshot`
 
-Capture the phone screen. Requires Shizuku rish.
+Capture the phone screen. **Requires Shizuku rish** — `screencap` needs the shell uid; there is no direct path from the Termux uid.
 
 **Input:**
 ```json
@@ -205,21 +207,24 @@ Capture the phone screen. Requires Shizuku rish.
 ```
 
 **Implementation:**
-1. Use Android's standard `screencap` command directly (available without root in local shell on S26):
+1. Run `screencap` through rish to a shared-storage temp path:
    ```bash
-   screencap -p /sdcard/temp_screenshot.png
+   rish -c 'screencap -p /sdcard/Download/.phone-agent-shot.png'
    ```
-2. Copy from `/sdcard/temp_screenshot.png` to `~/ingest/screenshots/` with correct filename
-3. Delete the temp file
-4. Read file dimensions from the image header
+2. Move the file into `~/ingest/screenshots/` with the correct filename (requires `termux-setup-storage` for /sdcard access).
+3. Delete the temp file.
+4. Read file dimensions from the image header.
 
 **Error states:**
+- `SHIZUKU_NOT_RUNNING` — Shizuku service not available
 - `DISPLAY_OFF` — screen is off, screencap returns black image → return error
 - `STORAGE_WRITE_FAILED` — can't write to temp location
 
 ### tools/capture_share.py — `phone.capture.share`
 
-Listen for incoming Android share sheet content. The phone has a Termux service that registers as a share target. When a user shares content (text, URL, image, file) to Termux from any app, this tool captures it.
+Receive content shared from other apps via the Android share sheet.
+
+**Note: `termux-share-receive` does not exist.** The real mechanism is Termux's hook scripts: when content is shared to Termux, the app invokes `~/bin/termux-url-opener` (URLs/text) or `~/bin/termux-file-editor` (files) with the shared content as argument.
 
 **Input:**
 ```json
@@ -233,32 +238,31 @@ Listen for incoming Android share sheet content. The phone has a Termux service 
 {
   "type": "text",
   "content": "https://example.com/article",
-  "source_app": "com.android.chrome"
+  "source_app": null
 }
 ```
+(`source_app` is not observable from the hook scripts; report `null`.)
 
-**Implementation approach:**
+**Implementation:**
 
-The share sheet integration works through Termux's `termux-share-receive` tool:
+1. One-time setup — install the hook scripts (this phase creates them):
 
-1. Register Termux as a share target (one-time setup):
-   - Android: Settings → Apps → Termux → Set as default → Text sharing
-   - Or via `termux-open-send` intent
-
-2. Receive shared content:
+   `~/bin/termux-url-opener`:
    ```bash
-   # Blocking call — waits for incoming share
-   termux-share-receive -t
+   #!/data/data/com.termux/files/usr/bin/bash
+   # Invoked by Termux when a URL/text is shared to it.
+   spool="$HOME/ingest/shares/spool"
+   mkdir -p "$spool"
+   printf '{"ts":"%s","type":"text","content":%s}\n' \
+       "$(date -Iseconds)" "$(printf '%s' "$1" | jq -Rs .)" \
+       > "$spool/$(date +%Y%m%d_%H%M%S)_$$.json"
    ```
 
-3. The tool handler:
-   - Runs `termux-share-receive -t` with a timeout wrapper
-   - Parses the output: type (text/url/image/file), content, source app
-   - If content is a URL → attempts to fetch and extract main content (readability)
-     - Commented out in Phase 2 — just store the URL raw. Phase 3 adds full extraction.
-   - Writes to `~/ingest/shares/` with metadata
+   `~/bin/termux-file-editor` — same shape with `"type":"file"` and the file path as content (copy the file into `~/ingest/shares/` first so it survives).
 
+2. The tool handler polls `~/ingest/shares/spool/` (0.5s interval) until a new spool entry appears or `timeout_sec` elapses. On receipt: parse the JSON line, classify content as text/url/image/file, move the entry out of spool into `~/ingest/shares/`, return the result.
 
+3. If content is a URL → store the URL raw in Phase 2. Phase 3 adds fetch + extraction.
 
 **Error states:**
 - `TIMEOUT` — no share received within `timeout_sec`
@@ -268,52 +272,45 @@ The share sheet integration works through Termux's `termux-share-receive` tool:
 
 ## Test Procedure
 
-1. Test audio capture:
-   ```bash
-   echo '{"jsonrpc":"2.0","method":"tools/call","id":5,"params":{"name":"phone.capture.audio","arguments":{"max_duration_sec":5}}}' | ...
-   ```
-   Speak for 3 seconds. Verify file appears in `~/ingest/audio/` and duration is ~3s.
+Requests go to the running server per Phase 0's curl pattern:
 
-2. Test image capture:
-   ```bash
-   echo '{"jsonrpc":"2.0","method":"tools/call","id":6,"params":{"name":"phone.capture.image","arguments":{"resolution":"1920x1080"}}}' | ...
-   ```
-   Verify file appears in `~/ingest/images/`.
+```bash
+mcp_call() {  # helper: mcp_call TOOL ARGS_JSON
+  curl -s -H "Authorization: Bearer $(cat ~/.config/phone-agent/token)" \
+    -H 'Content-Type: application/json' \
+    -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"$1\",\"arguments\":$2}}" \
+    "http://$PHONE_TS_IP:8462/mcp"
+}
+```
 
-3. Test screenshot:
-   ```bash
-   echo '{"jsonrpc":"2.0","method":"tools/call","id":7,"params":{"name":"phone.capture.screenshot","arguments":{}}}' | ...
-   ```
-   Verify PNG file appears in `~/ingest/screenshots/`.
-
-4. Test share sheet:
-   - Open Chrome → Share a URL to Termux
-   - Run: `echo '{"jsonrpc":"2.0","method":"tools/call","id":8,"params":{"name":"phone.capture.share","arguments":{"timeout_sec":30}}}' | ...`
-   - Verify the URL appears in the output
+1. Audio: `mcp_call phone.capture.audio '{"max_duration_sec":5}'` — speak for 3 seconds. Verify file appears in `~/ingest/audio/` trimmed to the speech span (~3s).
+2. Image: `mcp_call phone.capture.image '{"resolution":"1920x1080"}'` — verify JPEG in `~/ingest/images/`.
+3. Screenshot: `mcp_call phone.capture.screenshot '{}'` — verify PNG in `~/ingest/screenshots/`.
+4. Share: open Chrome → Share a URL to Termux, then `mcp_call phone.capture.share '{"timeout_sec":30}'` — verify the URL appears in the output.
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `phone.capture.audio` records clean WAV file with correct sample rate
-- [ ] VAD gate stops recording correctly after speech + 500ms silence
-- [ ] VAD timeout returns empty result with `VAD_TIMEOUT` error
+- [ ] `phone.capture.audio` records clean WAV with correct sample rate
+- [ ] Recorded file is VAD-trimmed to the speech span (leading/trailing silence removed)
+- [ ] A recording with no speech returns `VAD_TIMEOUT` and the file is deleted
 - [ ] `phone.capture.image` captures from camera and saves JPEG
-- [ ] `phone.capture.screenshot` saves PNG with correct dimensions
+- [ ] `phone.capture.screenshot` saves PNG with correct dimensions (via rish)
 - [ ] `phone.capture.screenshot` returns `DISPLAY_OFF` error when screen is off
-- [ ] `phone.capture.share` receives text shares from Chrome
-- [ ] `phone.capture.share` receives URL shares and stores raw URL
-- [ ] Ingest directory structure exists with all subdirectories
+- [ ] `phone.capture.share` receives text shares from Chrome via termux-url-opener spool
+- [ ] `phone.capture.share` receives URL shares and stores the raw URL
+- [ ] Ingest directory structure exists with all subdirectories (including `queue/delivering/`)
 - [ ] All filenames follow `YYYYMMDD_HHMMSS_type_hash5.ext` convention
 
 ---
 
 ## Guardrails
 
-- **No NPU processing in this phase.** Capture stores raw files only. Phase 3 chains capture + NPU.
-- **VAD runs on CPU, not NPU.** Silero VAD is <10ms per 30ms frame on a single CPU core — not worth NPU overhead to transfer.
+- **No NPU/LLM processing in this phase.** Capture stores raw files only. Phase 3 chains capture + compute.
+- **VAD runs on CPU.** Silero VAD is <10ms per 30ms frame on a single CPU core.
 - **Screenshot requires screen on.** Return clean error, not a corrupted black image.
-- **Share sheet is best-effort.** Android's share system is unreliable across OEM skins. Build with `termux-share-receive` only.
+- **Share sheet is best-effort.** Android share behavior varies across OEM skins; the termux-url-opener spool is the reliable path. Test on the actual device early.
 - **Don't delete source files after ingest.** The raw file in `audio/` is the source of truth. The `processed/` directory contains derived artifacts. Each tool writes to its own subdirectory.
 
 ---
@@ -322,25 +319,25 @@ The share sheet integration works through Termux's `termux-share-receive` tool:
 
 ```toml
 dependencies = [
-    "orjson>=3.10",
+    "httpx",
     "pydantic>=2.0",
     "Pillow>=10.0",
     "numpy>=1.26",
-    "sounddevice>=0.5",
     "soundfile>=0.13",
 ]
 ```
+(`onnxruntime` already required from Phase 1 for the Silero model. `sounddevice`/`pyaudio` are NOT baseline deps — only relevant to the optional streaming-VAD upgrade.)
 
 System packages:
 ```bash
-pkg install python numpy openblas termux-api
-# termux-camera-photo and termux-share-receive come with termux-api
+pkg install termux-api jq
+# termux-camera-photo / termux-microphone-record come with termux-api
+# (Termux:API companion app must also be installed, with mic + camera permissions granted)
 ```
 
 Silero VAD model:
 ```bash
-# Download silero vad onnx model
-wget -O ~/.config/phone-agent/vad/model.silero \
+wget -O ~/phone-agent/vad/model.silero \
   https://github.com/snakers4/silero-vad/raw/master/files/silero_vad.onnx
 ```
 
@@ -352,6 +349,7 @@ wget -O ~/.config/phone-agent/vad/model.silero \
 git add -A
 git commit -m "feat(phone-mcp): capture tools — audio, image, screenshot, share"
 git tag phone-mcp-phase-2
+git push origin phone
 ```
 
-Rollback: `git revert HEAD`. Capture tools gone. NPU inference and server still work. Ingest directory structure stays but holds leftover files (safe to delete manually).
+Rollback: `git revert HEAD`. Capture tools gone. Inference and server still work. Ingest directory structure stays but holds leftover files (safe to delete manually).

@@ -20,7 +20,7 @@ Phase 0 built. This phase has no dependency on NPU or capture — it only needs 
 ## File Structure
 
 ```
-~/.config/phone-agent/
+~/phone-agent/
 ├── tools/
 │   ├── sensor_imu.py               # NEW: phone.sensor.read_imu
 │   ├── sensor_modem.py             # NEW: phone.sensor.read_modem
@@ -104,8 +104,10 @@ Read accelerometer + gyroscope and classify the activity.
 ```
 
 **Implementation:**
-- Use Android's `SensorManager` via `termux-sensor -s "Accelerometer Gyroscope" -n {sample_count} -d {sample_interval_ms}`
+- Use Android's `SensorManager` via `termux-sensor -s "{accel_name},{gyro_name}" -n {sample_count} -d {sample_interval_ms}` (`-s` takes comma-separated sensor names; `-d` is delay in ms)
+- Sensor names are device-specific (e.g. `lsm6dso Accelerometer`). Discover them once with `termux-sensor -l` at setup and cache the mapping in `~/.config/phone-agent/sensors.json`
 - Parse the JSON output
+- Note: `in_pocket` inference is weak from IMU alone; the classifier may consult `read_light`/`read_proximity` as a documented heuristic
 - Run `ActivityClassifier.classify()` on the samples
 - Return the samples + inference result
 
@@ -138,13 +140,23 @@ Read network state — WiFi and cellular.
 }
 ```
 
-**Implementation:**
+**Implementation approaches (try in order):**
 
-Use **Termux:API** — `termux-wifi-connectioninfo` and `termux-telephony-deviceinfo`:
+1. **Termux:API** — `termux-wifi-connectioninfo` and `termux-telephony-deviceinfo`:
    ```bash
-   termux-wifi-connectioninfo   # Returns current BSSID, signal, SSID
-   termux-telephony-deviceinfo  # Returns cellular: network type, signal, roaming
+   termux-wifi-connectioninfo   # Current association: BSSID, SSID, rssi, link speed
+   termux-telephony-deviceinfo  # Cellular: network type, signal, roaming
    ```
+   (`termux-wifi-scaninfo` lists *neighboring* networks — only useful for scans, not the current connection.)
+
+2. **Shizuku rish** for hidden APIs (fields Termux:API can't reach):
+   ```bash
+   rish -c 'dumpsys wifi | grep "mNetworkInfo"'
+   rish -c 'dumpsys telephony.registry | grep "mSignalStrength"'
+   ```
+   Parse the dumpsys output.
+
+3. **Ping-based latency** — `ping -c 1 -W 1 {gateway_ip}` for `first_hop_latency_ms` (fall back to `1.1.1.1` if the gateway is unknown — not ideal but works).
 
 **Notes:**
 - Fields like `bssid` and `ssid` are only available when connected to WiFi. When on cellular only, set `network_type: "5G_NR"` (or LTE, etc.) and leave `bssid`/`ssid` null.
@@ -152,6 +164,7 @@ Use **Termux:API** — `termux-wifi-connectioninfo` and `termux-telephony-device
 
 **Error states:**
 - `NO_CONNECTIVITY` — no WiFi or cellular
+- `SHIZUKU_NOT_RUNNING` — for dumpsys-based fields that need rish
 
 ### tools/sensor_gps.py — `phone.sensor.read_gps`
 
@@ -176,7 +189,8 @@ Single-shot GPS location reading.
 
 **Implementation:**
 ```bash
-termux-location -p once -r last  # Returns JSON with lat, lon, accuracy
+termux-location -r last          # Cached last-known fix (low power); JSON with lat, lon, accuracy
+# termux-location -r once -p gps # Fresh GPS fix (slower, more battery) — use when accuracy matters
 ```
 
 Parse the output. Check against `config/geofences.json` for named geofences.
@@ -225,7 +239,6 @@ termux-sensor -s "Light" -n 1
 
 **Error states:**
 - `SENSOR_NOT_AVAILABLE` — no light sensor on device
-- `SENSOR_DIRTY` — sensor covered (finger over it) → return 0 with warning label
 
 ### tools/sensor_proximity.py — `phone.sensor.read_proximity`
 
@@ -283,7 +296,7 @@ Proximity sensors typically return 0.0cm (covered) or 5.0cm (not covered). Map t
 
 - **No NPU usage.** All sensor processing is CPU. IMU classifier is a <10KB linear model or decision tree, not a neural network.
 - **Single shot, not streaming.** Each tool call queries the sensor once and returns. Continuous monitoring (e.g., watch IMU every 5 seconds for proximity lock) belongs in Phase 7 (Scheduler) or Phase 8 (Laptop Agent polling).
-- **GPS is low-power.** `termux-location -p once -r last` uses the last known location, not a fresh GPS lock, to minimize battery impact. Fresh lock requires `termux-location -p once -p any`.
+- **GPS is low-power.** `termux-location -r last` uses the last known location, not a fresh GPS lock, to minimize battery impact. A fresh fix requires `termux-location -r once -p gps`.
 - **All sensors must handle "not available" gracefully.** Different Android phones have different sensor suites. S26 Ultra has all of these, but the code should degrade gracefully if one is missing.
 
 ---
@@ -294,6 +307,7 @@ Proximity sensors typically return 0.0cm (covered) or 5.0cm (not covered). Map t
 git add -A
 git commit -m "feat(phone-mcp): sensor tools — IMU, modem, GPS, light, proximity"
 git tag phone-mcp-phase-4
+git push origin phone
 ```
 
 Rollback: `git revert HEAD`. Sensor tools revert. All other functionality unaffected.

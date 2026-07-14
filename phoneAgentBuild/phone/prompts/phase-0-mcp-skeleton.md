@@ -78,7 +78,7 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
             return JSONResponse({"error": "Unauthorized"}, status_code=401)
         return await call_next(request)
 
-app = mcp.get_starlette_app()
+app = mcp.streamable_http_app()   # mounts the MCP endpoint at /mcp
 app.add_middleware(BearerAuthMiddleware)
 
 @app.get("/health")
@@ -223,14 +223,29 @@ Termux:Boot is a simpler alternative if Automate proves flaky; same script.
 
 ---
 
+## Repo layout (do this once, before Phase 0)
+
+The product code lives **inside the mophoAgent repo** on the `phone` branch, so
+your commits ride the branch and never collide with laptop-side work. The repo
+is cloned into the **native Termux home** (reachable from proot via the bind
+mount; the server runs with native Termux python). A symlink makes every
+phase's `~/phone-agent/…` path resolve:
+
+```bash
+cd ~ && git clone <mophoAgent-remote> mophoAgent   # in native Termux home
+cd ~/mophoAgent && git checkout phone
+mkdir -p phone-agent
+ln -s ~/mophoAgent/phone-agent ~/phone-agent        # phase file-trees use ~/phone-agent/
+```
+
 ## Git Commit
 
 ```bash
-cd ~/phone-agent/
-git init
+cd ~/mophoAgent
 git add -A
 git commit -m "feat(phone-mcp): skeleton server with health/state/dispatch"
 git tag phone-mcp-phase-0
+git push origin phone
 ```
 
-Rollback: `git revert HEAD` on this repo. Server is 6 files — no side effects.
+Rollback: `git revert HEAD` on the `phone` branch. Server is 6 files — no side effects.

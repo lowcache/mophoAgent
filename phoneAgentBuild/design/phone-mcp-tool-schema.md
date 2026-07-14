@@ -191,10 +191,10 @@ Input:
 }
 ```
 
-Output:
+Output (the `embedding` array is 384 floats — abbreviated here):
 ```json
 {
-  "embedding": [0.0123, -0.0456, ...],  // 384-dim float16 array
+  "embedding": [0.0123, -0.0456, 0.0789],
   "dimensions": 384,
   "processing_time_ms": 45
 }
@@ -213,7 +213,7 @@ Input:
 {
   "text": "short input text",
   "labels": ["store", "query", "command", "ignore"],
-  "model": "intent-classifier-v1"
+  "model": "qwen2.5-1.5b-q4"
 }
 ```
 
@@ -227,11 +227,11 @@ Output:
 ```
 
 Errors:
-- `MODEL_NOT_LOADED` — intent classifier not initialized
+- `MODEL_NOT_LOADED` — classifier model (qwen2.5-1.5b) not loaded
 
 #### `phone.npu.llm_infer`
 
-Run short inference on a local NPU-accelerated 1-3B model for fast-path responses (sub-50ms TTFT, short context <1024 tokens). Routes to laptop CUDA for long/heavy requests via the MCP mesh.
+Run short inference on a local 1-3B model (qwen2.5-1.5b) for fast-path responses (CPU baseline; NPU sub-50ms TTFT is a D5 stretch; short context <1024 tokens). This tool answers locally only; deep/heavy queries are sent to the laptop's Ollama by the Phase 6 router (via the Ollama HTTP API over Tailscale per D3), not by this tool. The `routed_to_laptop` field is always `false` here.
 
 Input:
 ```json

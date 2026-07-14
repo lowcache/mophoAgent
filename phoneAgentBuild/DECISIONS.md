@@ -30,8 +30,13 @@ architecture. Decided:
   location) only work in the native environment. Claude Code edits files from
   proot via a bind mount of the Termux home; it runs/tests the server with
   the Termux-side interpreter (see `phone/PHONE-ENV.md`).
-- Code repo: `~/phone-agent/` (git repo). Config: `~/.config/phone-agent/`.
-  Models: `~/phone-agent/models/` (gitignored). The original
+- Layout (reconciled with the branch model): the **mophoAgent repo** is
+  cloned into the native Termux home as `~/mophoAgent`; phone product code
+  lives in `~/mophoAgent/phone-agent/` and is committed on the **`phone`
+  branch** so phone and laptop commits never collide. A symlink
+  `~/phone-agent -> ~/mophoAgent/phone-agent` makes every phase's
+  `~/phone-agent/…` path resolve. Config: `~/.config/phone-agent/`. Models:
+  `~/phone-agent/models/` (gitignored). The original
   "`git init ~/.config/phone-agent`" layout (code+repo inside .config) is out.
 
 ## D3 — No SSH anywhere in the phone↔laptop path
