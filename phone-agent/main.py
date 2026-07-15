@@ -38,8 +38,9 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
             
         expected = get_token_from_file() # read from ~/.config/phone-agent/token
         # Constant-time compare so response latency does not leak how many
-        # leading bytes of the token matched.
-        if not hmac.compare_digest(auth, f"Bearer {expected}"):
+        # leading bytes of the token matched. Compare bytes: compare_digest
+        # raises TypeError on non-ASCII str input (attacker-controlled header).
+        if not hmac.compare_digest(auth.encode(), f"Bearer {expected}".encode()):
             return JSONResponse({"error": "Unauthorized"}, status_code=401)
             
         return await call_next(request)
