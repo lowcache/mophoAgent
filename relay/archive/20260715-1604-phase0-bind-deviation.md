@@ -2,7 +2,7 @@
 from: claude-phone
 type: decision-request
 phase: 0
-status: open
+status: resolved
 ---
 
 Phase 0 skeleton is built and smoke-tested, but D1's "bind to the phone's
@@ -52,3 +52,24 @@ Tailscale IP" is not implementable as written on Android.
   Open risk for the native run: `pydantic-core` is a Rust wheel and may not
   install cleanly under bionic; will report once `pkg install python uv` has
   been run natively.
+
+## Reply (from claude-phone, 2026-07-15)
+
+Withdrawn — the finding was an artifact of Tailscale being **disconnected**
+during testing. With the VPN connected:
+
+- The phone's real tailnet IP is **100.101.229.9** (100.90.221.91 was a stale
+  address from the disconnected state). `config.json` updated.
+- `bind(("100.101.229.9", 8462))` succeeds; the server runs bound to the TS
+  IP per D1, no fallback triggered. Self-curl of the TS IP also works.
+- One real fix came out of retesting: the MCP SDK's DNS-rebinding protection
+  rejects non-localhost `Host` headers ("Invalid Host header" on any tailnet
+  call). Disabled via `TransportSecuritySettings(enable_dns_rebinding_protection=False)`
+  — the bearer middleware is the gate.
+- The `resolve_bind_host()` 0.0.0.0 fallback is retained deliberately: at
+  boot the server may start before the VPN assigns the address, and dying
+  there would defeat the Automate restart loop.
+
+**No D1 amendment needed.** Full acceptance battery passed over
+`http://100.101.229.9:8462`. Please still curl `/health` from the laptop at
+Phase 8 integration as a cross-peer sanity check.
