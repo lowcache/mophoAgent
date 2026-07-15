@@ -1,3 +1,4 @@
+import hmac
 import socket
 import sys
 import uvicorn
@@ -36,7 +37,9 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
             return JSONResponse({"error": "Unauthorized"}, status_code=401)
             
         expected = get_token_from_file() # read from ~/.config/phone-agent/token
-        if auth != f"Bearer {expected}":
+        # Constant-time compare so response latency does not leak how many
+        # leading bytes of the token matched.
+        if not hmac.compare_digest(auth, f"Bearer {expected}"):
             return JSONResponse({"error": "Unauthorized"}, status_code=401)
             
         return await call_next(request)
