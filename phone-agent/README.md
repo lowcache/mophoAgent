@@ -58,11 +58,14 @@ Start the server using the virtual environment:
      http://127.0.0.1:8462/mcp
    ```
 
-Note on binding: Android does not let userland bind the Tailscale VPN
-address directly (`EADDRNOTAVAIL`), so the server probes the configured IP
-and falls back to `0.0.0.0`. The bearer token gates every route except
-`/health`. The phone cannot curl its own Tailscale IP (no VPN hairpin);
-verify tailnet reachability from another peer.
+Note on binding: with Tailscale connected, the server binds the configured
+tailnet IP directly (verified, including self-curl of that IP). If the VPN
+is down — e.g. early at boot — the address is unassigned and bind would
+fail with `EADDRNOTAVAIL`, so the server probes it and falls back to
+`0.0.0.0` with a warning rather than dying. The bearer token gates every
+route except `/health`. DNS-rebinding protection in the MCP SDK is disabled
+(it rejects non-localhost `Host` headers, breaking tailnet access; the
+token middleware is the gate).
 
 ## Automate flow creation steps
 

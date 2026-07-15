@@ -5,10 +5,18 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from config.settings import TAILSCALE_IP, PORT, token_file_exists, get_token_from_file
 
-# Create FastMCP instance
-mcp = FastMCP("phone-mcp", stateless_http=True, json_response=True)
+# Create FastMCP instance. DNS-rebinding protection is off: it rejects any
+# non-localhost Host header (tailnet IP, MagicDNS name), and the bearer
+# token middleware already gates the endpoint.
+mcp = FastMCP(
+    "phone-mcp",
+    stateless_http=True,
+    json_response=True,
+    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+)
 
 # Register tools from registry
 from tool_registry import register_all
