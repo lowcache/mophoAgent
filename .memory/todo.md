@@ -11,8 +11,8 @@ status: active
 - [x] Clone mophoAgent repo into proot-distro on Galaxy S26 Ultra
 - [x] Spin up Claude Code; read phone/PHONE-ENV.md (build environment context)
 - [x] Phase 0: MCP skeleton (FastMCP server, health/state/dispatch endpoints, systemd service) — verified 2026-07-15
-- [x] Phase 1: NPU inference layer (whisper, OCR, embed, classify; CPU baseline) — committed 2026-07-16 @ da8849e; relay handoff @ b83ca19
-- [IN PROGRESS] **Operator gate before Phase 2:** Native Termux launch validation. Gate runbook pushed (relay/to-phone/20260716-0355-phase1-operator-gate.md @ 5a13bb3) covering path conflict Q1, branch reconciliation Q2, native launch + acceptance battery (health 200, auth 401, tools/list, termux-battery-status, Tailscale reachability). Running on Galaxy S26 since 2026-07-16. Awaiting results via relay/to-laptop/.
+- [x] Phase 1: NPU inference layer (whisper, OCR, embed, classify; CPU baseline) — committed 2026-07-16 @ da8849e; operator gate PASSED 2026-07-16
+- [ ] **Phase 1 sign-off closure:** Awaiting tailnet /health check (see Laptop/Mesh bringup below)
 - [ ] Phase 2: Capture tools (audio, image, screenshot, share)
 - [ ] Phase 3: Processing pipelines (audio→text, image→ocr, share→extract)
 - [ ] Phase 4: Sensor tools (IMU, modem, GPS, light, proximity)
@@ -24,6 +24,14 @@ status: active
 ## Laptop Build (Claude Code on laptop)
 - [ ] Phase 8: NixOS module (mcp-gateway peer, proximity hooks, network routing, ingest-sync timer)
 
+## Mesh Bringup (volnix Tailscale VM)
+- [ ] **Mint auth key:** User logs into https://login.tailscale.com/admin/settings/keys, generates reusable key, copies tskey-auth-…
+- [ ] **Place key + rebuild:** `sudo install -d -m 700 /persist/var/lib/tailscale-vm`, write key (mode 600), `cd ~/.nix-config && make switch`
+- [ ] **Start VM:** `sudo systemctl start microvm@tailscale.service`
+- [ ] **Verify join:** Check journal for success, admin console shows `tailscale` node online
+- [ ] **Add host route:** `sudo ip route add 100.64.0.0/10 via 192.168.101.2`
+- [ ] **Run /health check:** `curl <phone_ts_ip>:8462/health` (expect 200). On 200: flip relay sign-off to status=closed, commit, push.
+
 ## Integration
 - [ ] Phone: phases 0–7 complete and tested; signal readiness via `relay/to-laptop/`
 - [ ] Laptop: merge `phone` → `main` (fast-forward after phone push)
@@ -31,7 +39,7 @@ status: active
 - [ ] Laptop: complete phase 8; merge `laptop` → `main`
 - [ ] End-to-end test: MCP mesh between phone and laptop over Tailscale; voice, capture, processing, offline queue
 
-## Stability & Proot Removal (deferred post-Phase 1 gate)
+## Stability & Proot Removal (deferred post-Phase 1 closure)
 - [ ] Research (tether): whether Claude Code + full build runs acceptably in native Termux (bionic) without proot userland. If viable, retire proot entirely from orchestration.
 - [ ] Legitimize native Termux runtime: `pkg install llama-cpp python-numpy python-pillow python-onnxruntime`; retire `~/phone-agent-runtime` hand-extracted .debs, LD_LIBRARY_PATH requirement, and dpkg-blindness.
 - [ ] Codify environment knobs into versioned bootstrap.sh (install-time setup) + run.sh (launcher): UV_LINK_MODE=copy, ANDROID_API_LEVEL=24, PREFIX export, `patchelf --add-needed libpython3.14.so`, thread pins (‑t4 ‑tb4), termux-wake-lock hold. Launcher detects proot and fails fast with diagnostic instead of starting into termux-api-less breakage.
