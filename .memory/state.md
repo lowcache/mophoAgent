@@ -10,7 +10,8 @@ status: active
 ## Repository Structure
 - **Branches:** `main` (integration base), `phone` (phases 0–7), `laptop` (phase 8)
 - **Branch ownership:** claude-phone owns `phone` branch (phases 0–7); claude-laptop owns `laptop` branch (phase 8) and performs integration merges. Main is integration-only.
-- **Latest commits:** `phone` @ bdad36d (relay: native venv details), `laptop` @ f19bc77 (local hold: doc fix), `main` @ fdbe9a7
+- **Latest commits:** `phone` @ b83ca19 (relay: phase-1 handoff); `laptop` @ ce3e8d5 (3 ahead, pending rebase → push); `main` @ fdbe9a7
+- **Integration status:** Phone pushed phase-1 code + relay (2026-07-16). Laptop rebase queued (no conflicts predicted).
 
 ## phoneAgentBuild Organization
 - `design/` — architecture specifications: phone-mcp-tool-schema.md, npu-pipeline-graph.md, trigger-propagation-model.md, offline-autonomy-model.md, deepseek-system-prompt.md
@@ -35,11 +36,11 @@ status: active
   - Both changes re-verified end-to-end before commit
 - **D1 bind deviation (resolved, no amendment):** TS IP bind falls back to 0.0.0.0 (DNS-rebind protection under Tailscale VPN works), SDK Host-header check disabled, Accept header required. All per D1 constraints.
 
-## Phase 1 In Progress (started 2026-07-15 ~20:00)
-- **Status:** Models downloading; transcribe performance tuning underway (step 1 of 6 in build plan)
-- **Environment:** Native Termux python 3.14, venv built with `UV_LINK_MODE=copy` (hardlink poisons dlopen under proot)
-- **Build pivot:** Switched from uv-venv to `~/phone-agent-runtime` .deb-extraction runtime (llama-server extracted from Termux .debs, whisper cmake-built, numpy/PIL/onnxruntime via .deb payloads; `$PREFIX` untouched due to permission classifier blocking)
-- **Live server state:** Rebuilt on native venv and restarted, but predates LD_LIBRARY_PATH fix; requires operator relaunch with `LD_LIBRARY_PATH=$HOME/phone-agent-runtime/lib` + `termux-wake-lock` for models to load correctly
-- **Loopback test server:** Failed during perf tuning (memory pressure: ~2.5 GB free, 92s transcribe for 11s audio indicates RAM/swap constraint; llama.cpp model loading + whisper + system overhead competing)
-- **Blocking item:** Native Termux launch gate. Venv + bearer fix verified in isolation; full native-session validation with termux-api access awaiting operator completion. Phone cannot proceed past step 1 without confirmation this works.
+## Phase 1 Complete (committed 2026-07-16)
+- **Delivery commit:** da8849e (NPU inference: whisper, OCR, embed, classify; CPU baseline per D5; serialized priority queue with interactive preemption D8; persistent loopback backends :8464/:8465)
+- **Memory file:** 20260716-phase1-built.md (phone's phase-1 build documentation)
+- **Relay handoff:** b83ca19 (battery results, deviations, operator TODOs)
+- **Runtime:** `~/phone-agent-runtime` .deb-extraction (llama-server, whisper cmake-built, numpy/PIL/onnxruntime via .debs; requires `LD_LIBRARY_PATH=$HOME/phone-agent-runtime/lib` + `termux-wake-lock` to launch)
+- **Testing:** Loopback server failed during perf tuning (RAM/swap constraint with ~2.5 GB free; qwen model resident; whisper bench isolation needed to characterize)
+- **Operator gate:** Native Termux launch validation with LD_LIBRARY_PATH fix and termux-api access required before Phase 2.
 - **Timestamp format:** RFC3339 ms-truncated (correct: `2026-07-15T16:34:38.721Z`)
