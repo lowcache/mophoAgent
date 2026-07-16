@@ -1,7 +1,7 @@
 ---
 type: state
 project: mophoAgent
-last_updated: 2026-07-15
+last_updated: 2026-07-16
 status: active
 ---
 
@@ -10,8 +10,8 @@ status: active
 ## Repository Structure
 - **Branches:** `main` (integration base), `phone` (phases 0–7), `laptop` (phase 8)
 - **Branch ownership:** claude-phone owns `phone` branch (phases 0–7); claude-laptop owns `laptop` branch (phase 8) and performs integration merges. Main is integration-only.
-- **Latest commits:** `phone` @ b83ca19 (relay: phase-1 handoff); `laptop` @ ce3e8d5 (3 ahead, pending rebase → push); `main` @ fdbe9a7
-- **Integration status:** Phone pushed phase-1 code + relay (2026-07-16). Laptop rebase queued (no conflicts predicted).
+- **Latest commits:** `phone` @ a4d6fec (memory + doc-fix commits post-handoff); `laptop` @ ce3e8d5; `main` @ fdbe9a7
+- **Integration status:** Phase 1 delivered (da8849e) + relay handoff (b83ca19). Doc fix (e715304) rebased and pushed @ a4d6fec. Branch fully synced with origin/phone (no divergence). Awaiting operator gate (native Termux launch validation) on Galaxy S26 before Phase 2.
 
 ## phoneAgentBuild Organization
 - `design/` — architecture specifications: phone-mcp-tool-schema.md, npu-pipeline-graph.md, trigger-propagation-model.md, offline-autonomy-model.md, deepseek-system-prompt.md
@@ -42,5 +42,5 @@ status: active
 - **Relay handoff:** b83ca19 (battery results, deviations, operator TODOs)
 - **Runtime:** `~/phone-agent-runtime` .deb-extraction (llama-server, whisper cmake-built, numpy/PIL/onnxruntime via .debs; requires `LD_LIBRARY_PATH=$HOME/phone-agent-runtime/lib` + `termux-wake-lock` to launch)
 - **Testing:** Loopback server failed during perf tuning (RAM/swap constraint with ~2.5 GB free; qwen model resident; whisper bench isolation needed to characterize)
-- **Operator gate:** Native Termux launch validation with LD_LIBRARY_PATH fix and termux-api access required before Phase 2.
+- **Operator gate:** Native Termux launch validation. Path conflict to resolve: confirm agent root directory (~/phone-agent vs ~/mophoAgent/phone-agent; check for .venv/bin/python + main.py). Launch with `LD_LIBRARY_PATH=$HOME/phone-agent-runtime/lib` + `termux-wake-lock`. Verify termux-api access (e.g., termux-battery-status works natively, not failing command-not-found). Full acceptance runbook: compare /health 200 response, auth rejection on bad token, tools/list payload shape, Tailscale reachability from laptop, server survival after proot exits.
 - **Timestamp format:** RFC3339 ms-truncated (correct: `2026-07-15T16:34:38.721Z`)

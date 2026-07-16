@@ -1,7 +1,7 @@
 ---
 type: todo
 project: mophoAgent
-last_updated: 2026-07-15
+last_updated: 2026-07-16
 status: active
 ---
 
@@ -23,7 +23,6 @@ status: active
 
 ## Laptop Build (Claude Code on laptop)
 - [ ] Phase 8: NixOS module (mcp-gateway peer, proximity hooks, network routing, ingest-sync timer)
-- [REBASE QUEUED] Doc fix (phase-1-npu-inference.md: models root per D2); rebasing onto origin/phone @ b83ca19 then pushing
 
 ## Integration
 - [ ] Phone: phases 0–7 complete and tested; signal readiness via `relay/to-laptop/`
