@@ -1,16 +1,17 @@
 ---
 type: todo
 project: mophoAgent
-last_updated: 2026-07-14
+last_updated: 2026-07-15
 status: active
 ---
 
 # Open Tasks
 
 ## Phone Build (Claude Code in proot-distro)
-- [ ] Clone mophoAgent repo into proot-distro on Galaxy S26 Ultra
-- [ ] Spin up Claude Code; read phone/PHONE-ENV.md (build environment context)
-- [ ] Phase 0: MCP skeleton (FastMCP server, health/state/dispatch endpoints, systemd service)
+- [x] Clone mophoAgent repo into proot-distro on Galaxy S26 Ultra
+- [x] Spin up Claude Code; read phone/PHONE-ENV.md (build environment context)
+- [x] Phase 0: MCP skeleton (FastMCP server, health/state/dispatch endpoints, systemd service) — verified 2026-07-15
+- [ ] **PREREQUISITE for Phase 1:** Confirm native Termux `pkg install python uv` can build pydantic-core wheel on bionic. Phase 0 ran under proot; Phase 1+ requires native termux-api. Should be verified on device before Phase 1 starts.
 - [ ] Phase 1: NPU inference layer (whisper, OCR, embed, classify; CPU baseline)
 - [ ] Phase 2: Capture tools (audio, image, screenshot, share)
 - [ ] Phase 3: Processing pipelines (audio→text, image→ocr, share→extract)
