@@ -1,6 +1,34 @@
-# Phase 0: MCP Server Skeleton
+# Phone MCP Server (Phase 0 skeleton + Phase 1 inference)
 
 A persistent FastMCP Streamable-HTTP server that runs in Termux on the Galaxy S26 Ultra.
+
+## Phase 1: inference runtime
+
+Five NPU tools (`phone.npu.{transcribe,ocr,embed,classify,llm_infer}`) route
+through a serialized priority queue (`npu/queue.py`) to persistent loopback
+backends (D4): whisper-server :8465, llama-server --embedding :8464, and a
+lazy llama-server :8463 shared by classify+llm (unloaded after 30s idle).
+OCR runs in-process (onnxruntime CPU EP, PP-OCR rec model + numpy line
+segmentation).
+
+Backend binaries and their shared libraries live in
+`~/phone-agent-runtime/{bin,lib}` (llama-server from the Termux `llama-cpp`
+.deb; whisper-server built from source). numpy/Pillow/onnxruntime were
+unpacked from Termux .debs straight into `.venv` — the dpkg database does
+not know about any of this. To supersede the private runtime the operator
+can run `pkg install llama-cpp python-numpy python-pillow python-onnxruntime`
+natively and rebuild the venv with system-site-packages.
+
+**The server must be launched with the runtime libs on the linker path:**
+
+```bash
+cd ~/phone-agent && LD_LIBRARY_PATH=$HOME/phone-agent-runtime/lib .venv/bin/python main.py
+```
+
+Model files (gitignored) live in `~/phone-agent/models/` — see
+`npu/models.py` SPECS for the expected filenames. All backends are pinned
+to 4 threads: on this big.LITTLE SoC more threads is dramatically slower
+(whisper: 12s at `-t 4` vs 137s at `-t 8` for the same 11s clip).
 
 ## Setup Instructions
 
@@ -83,5 +111,5 @@ You can start the server on boot using the Automate app or Termux:Boot.
 Create `~/.termux/boot/phone-mcp.sh` (requires the Termux:Boot app):
 ```bash
 #!/data/data/com.termux/files/usr/bin/sh
-cd ~/phone-agent && .venv/bin/python main.py >> ~/.config/phone-agent/server.log 2>&1
+cd ~/phone-agent && LD_LIBRARY_PATH=$HOME/phone-agent-runtime/lib .venv/bin/python main.py >> ~/.config/phone-agent/server.log 2>&1
 ```
