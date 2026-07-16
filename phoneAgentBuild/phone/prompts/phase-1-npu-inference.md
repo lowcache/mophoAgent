@@ -250,14 +250,14 @@ Models are NOT committed to the repo. They're downloaded separately:
 
 ```bash
 # Create models directory
-mkdir -p ~/.config/phone-agent/models/
+mkdir -p ~/phone-agent/models/
 
 # Whisper small.en (q4_0)
-wget -O ~/.config/phone-agent/models/whisper-small.en-q4_0.gguf \
+wget -O ~/phone-agent/models/whisper-small.en-q4_0.gguf \
   https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en-q4_0.bin
 
 # Embedding model
-wget -O ~/.config/phone-agent/models/all-minilm-l6-v2-q4.gguf \
+wget -O ~/phone-agent/models/all-minilm-l6-v2-q4.gguf \
   https://huggingface.co/ChristianAzinn/ggml-all-MiniLM-L6-v2-q4_0/resolve/main/ggml-model-q4_0.gguf
 
 # OCR model
@@ -270,7 +270,7 @@ wget -O ~/.config/phone-agent/models/all-minilm-l6-v2-q4.gguf \
 
 1. Start the server:
    ```bash
-   cd ~/.config/phone-agent && python main.py
+   cd ~/phone-agent && python main.py
    ```
 
 2. Test transcribe with a test WAV file:
