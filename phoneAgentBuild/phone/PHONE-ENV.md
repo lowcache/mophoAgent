@@ -78,5 +78,7 @@ Two environments; errors live at their boundary:
 The agent NEVER launches the MCP server, backend servers, or termux-api calls
 from proot. The runit service (`sv up/down/status phone-agent`, installed by
 `phone-agent/scripts/bootstrap.sh`) owns the server lifecycle; dev verifies
-over loopback HTTP only. Launch logic lives in `phone-agent/scripts/run.sh`
-(fast-fails under proot).
+over local HTTP only — against the server's bind address: the configured
+tailnet IP while the VPN is up (loopback is then REFUSED; 127.0.0.1 only
+answers after the 0.0.0.0 fallback when the VPN is down). Launch logic lives
+in `phone-agent/scripts/run.sh` (fast-fails under proot).

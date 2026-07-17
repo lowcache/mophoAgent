@@ -8,7 +8,15 @@
 # Exit 0 = all green (merge allowed); nonzero = red battery, no merge.
 set -uo pipefail
 
-BASE=${1:-http://127.0.0.1:8462}
+if [ $# -ge 1 ]; then
+    BASE=$1
+else
+    # On-device default: the server binds the configured tailnet IP when the
+    # VPN is up (loopback refused), 0.0.0.0 when down — prefer the config IP.
+    TS_IP=$(sed -n 's/.*"tailscale_ip"[^0-9]*\([0-9.]*\).*/\1/p' \
+        "$HOME/.config/phone-agent/config.json" 2>/dev/null | head -1)
+    BASE="http://${TS_IP:-127.0.0.1}:8462"
+fi
 TOKEN=${PHONE_AGENT_TOKEN:-}
 [ -z "$TOKEN" ] && [ -f "$HOME/.config/phone-agent/token" ] \
     && TOKEN=$(tr -d '[:space:]' < "$HOME/.config/phone-agent/token")

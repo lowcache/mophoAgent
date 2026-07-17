@@ -18,6 +18,12 @@ PREFIX=/data/data/com.termux/files/usr
 AGENT="$HOME/mophoAgent/phone-agent"
 SVDIR="$PREFIX/var/service/phone-agent"
 
+# The server binds the configured tailnet IP when the VPN is up (loopback is
+# then REFUSED) and falls back to 0.0.0.0 when it is down — probe both.
+TS_IP=$(sed -n 's/.*"tailscale_ip"[^0-9]*\([0-9.]*\).*/\1/p' \
+    "$HOME/.config/phone-agent/config.json" 2>/dev/null | head -1)
+ADDRS="127.0.0.1${TS_IP:+ $TS_IP}"
+
 [ -x "$AGENT/scripts/run.sh" ] || chmod +x "$AGENT/scripts/run.sh" 2>/dev/null \
     || die "run.sh missing at $AGENT/scripts/run.sh"
 
@@ -53,8 +59,10 @@ kill_pat 'llama-server'    # stragglers, if any
 kill_pat 'whisper-server'
 
 for port in 8462 8463 8464 8465; do
-    curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$port/health" \
-        && die "port $port still in use after cleanup — investigate before re-running"
+    for ip in $ADDRS; do
+        curl -s -o /dev/null --max-time 2 "http://$ip:$port/health" \
+            && die "port $port still in use on $ip after cleanup — investigate before re-running"
+    done
 done
 
 echo "==> pkg install (legitimizes the hand-extracted runtime, P3)"
@@ -94,10 +102,12 @@ sleep 2
 sv-enable phone-agent 2>/dev/null || rm -f "$SVDIR/down"
 sv up phone-agent
 
-echo "==> waiting for /health 200 (backend model loads take ~30-60s)"
+echo "==> waiting for /health 200 on: $ADDRS (backend model loads take ~30-60s)"
 for _ in $(seq 1 36); do
-    code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8462/health || true)
-    [ "$code" = 200 ] && { echo "OK: phone-agent service is up"; exit 0; }
+    for ip in $ADDRS; do
+        code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://$ip:8462/health" || true)
+        [ "$code" = 200 ] && { echo "OK: phone-agent service is up on $ip:8462"; exit 0; }
+    done
     sleep 5
 done
 echo "WARN: /health not 200 yet — check: sv status phone-agent ; tail $PREFIX/var/log/sv/phone-agent/current"
