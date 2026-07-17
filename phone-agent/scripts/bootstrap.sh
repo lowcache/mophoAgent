@@ -21,6 +21,42 @@ SVDIR="$PREFIX/var/service/phone-agent"
 [ -x "$AGENT/scripts/run.sh" ] || chmod +x "$AGENT/scripts/run.sh" 2>/dev/null \
     || die "run.sh missing at $AGENT/scripts/run.sh"
 
+echo "==> stop any existing instance (hand-launched or supervised)"
+# NEVER pkill -f here (matched our own shell once); scan /proc cmdlines instead.
+sv down phone-agent 2>/dev/null || true
+
+scan_pids() {  # pids whose cmdline matches $1, excluding this script
+    for d in /proc/[0-9]*; do
+        p=${d#/proc/}
+        [ "$p" = "$$" ] && continue
+        tr '\0' ' ' < "$d/cmdline" 2>/dev/null | grep -q "$1" && echo "$p"
+    done
+    return 0
+}
+
+kill_pat() {  # TERM, wait up to 10s, then KILL
+    local pids; pids=$(scan_pids "$1")
+    [ -z "$pids" ] && return 0
+    echo "    stopping $1 (pid $pids)"
+    kill $pids 2>/dev/null || true
+    for _ in $(seq 1 10); do
+        pids=$(scan_pids "$1")
+        [ -z "$pids" ] && return 0
+        sleep 1
+    done
+    echo "    TERM ignored, sending KILL to $pids"
+    kill -9 $pids 2>/dev/null || true
+}
+
+kill_pat 'main\.py'        # MCP server (backends are its children)
+kill_pat 'llama-server'    # stragglers, if any
+kill_pat 'whisper-server'
+
+for port in 8462 8463 8464 8465; do
+    curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$port/health" \
+        && die "port $port still in use after cleanup — investigate before re-running"
+done
+
 echo "==> pkg install (legitimizes the hand-extracted runtime, P3)"
 pkg install -y termux-services termux-api llama-cpp \
     python-numpy python-pillow python-onnxruntime
@@ -49,13 +85,6 @@ termux-wake-lock
 . $PREFIX/etc/profile.d/start-services.sh
 EOF
 chmod +x "$HOME/.termux/boot/start-services.sh"
-
-# If an unsupervised server already holds :8462, the service would crash-loop
-# on bind while the health-wait below false-passes against the OLD process.
-if curl -s -o /dev/null --max-time 3 http://127.0.0.1:8462/health; then
-    sv status phone-agent 2>/dev/null | grep -q '^run' \
-        || die ":8462 already served by a non-service process — stop the hand-launched server first, then re-run"
-fi
 
 echo "==> start runsvdir + enable service"
 # start-services.sh normally runs from a login shell; source it so a fresh
