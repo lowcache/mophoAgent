@@ -12,7 +12,9 @@ die() { echo "FATAL: $*" >&2; exit 1; }
 # Termux:Boot runs with a minimal environment; make ours explicit.
 PREFIX=/data/data/com.termux/files/usr
 export HOME=/data/data/com.termux/files/home
-export PATH="$PREFIX/bin:${PATH:-}"
+# $HOME/bin carries rish (Shizuku) and the share hooks — capture tools
+# resolve them via PATH.
+export PATH="$HOME/bin:$PREFIX/bin:${PATH:-}"
 
 AGENT="$HOME/mophoAgent/phone-agent"
 RUNTIME="$HOME/phone-agent-runtime"
