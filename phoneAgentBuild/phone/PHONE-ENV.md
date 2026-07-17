@@ -68,3 +68,15 @@ termux-user-repository (`tur-repo`), then consider a pure-python fallback,
 then flag the blocker in your phase summary rather than substituting an
 architecture change — architecture changes go through the laptop agent and
 `DECISIONS.md`.
+
+## Runtime boundary (P2 — binding rule, 2026-07-16)
+
+Two environments; errors live at their boundary:
+- **proot-distro** = dev/orchestration ONLY (Claude Code, edits, commits).
+- **native Termux** = runtime + ALL device I/O.
+
+The agent NEVER launches the MCP server, backend servers, or termux-api calls
+from proot. The runit service (`sv up/down/status phone-agent`, installed by
+`phone-agent/scripts/bootstrap.sh`) owns the server lifecycle; dev verifies
+over loopback HTTP only. Launch logic lives in `phone-agent/scripts/run.sh`
+(fast-fails under proot).

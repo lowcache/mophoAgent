@@ -11,19 +11,25 @@ lazy llama-server :8463 shared by classify+llm (unloaded after 30s idle).
 OCR runs in-process (onnxruntime CPU EP, PP-OCR rec model + numpy line
 segmentation).
 
-Backend binaries and their shared libraries live in
-`~/phone-agent-runtime/{bin,lib}` (llama-server from the Termux `llama-cpp`
-.deb; whisper-server built from source). numpy/Pillow/onnxruntime were
-unpacked from Termux .debs straight into `.venv` — the dpkg database does
-not know about any of this. To supersede the private runtime the operator
-can run `pkg install llama-cpp python-numpy python-pillow python-onnxruntime`
-natively and rebuild the venv with system-site-packages.
+## Runtime contract (stabilization P0–P3, 2026-07-16)
 
-**The server must be launched with the runtime libs on the linker path:**
+Two environments; the boundary is binding (see `phoneAgentBuild/phone/PHONE-ENV.md`):
+proot-distro is dev/orchestration only; native Termux owns the runtime and all
+device I/O. The agent never launches servers or calls termux-api from proot.
 
-```bash
-cd ~/phone-agent && LD_LIBRARY_PATH=$HOME/phone-agent-runtime/lib .venv/bin/python main.py
-```
+Component provenance:
+
+| component | source of truth | notes |
+|---|---|---|
+| llama-server | `pkg install llama-cpp` | `run.sh` falls back to `~/phone-agent-runtime/bin` |
+| whisper-server | `~/phone-agent-runtime/bin` | **single explicit fallback** — not packaged in termux-main (checked 2026-07-16); source-built |
+| numpy / Pillow / onnxruntime | `pkg install python-{numpy,pillow,onnxruntime}` | .deb payloads currently copied into `.venv`; retire by rebuilding the venv with `--system-site-packages` (operator, native) |
+
+`scripts/run.sh` owns launch invariants: native-only fast-fail, explicit
+`HOME`/`PATH` for the minimal Termux:Boot environment, existence checks, and
+`LD_LIBRARY_PATH=$HOME/phone-agent-runtime/lib` (still required by
+whisper-server and the venv-copied onnxruntime; drop only after those two
+retire). Thread pinning (`-t 4 -tb 4`) stays in the backend spawn config.
 
 Model files (gitignored) live in `~/phone-agent/models/` — see
 `npu/models.py` SPECS for the expected filenames. All backends are pinned
@@ -55,10 +61,27 @@ to 4 threads: on this big.LITTLE SoC more threads is dramatically slower
 
 ## Running the Server
 
-Start the server using the virtual environment:
+The server runs as a supervised runit service (termux-services) installed by
+a one-time native bootstrap:
+
 ```bash
-.venv/bin/python main.py
+# NATIVE Termux session (fast-fails under proot):
+bash ~/mophoAgent/phone-agent/scripts/bootstrap.sh
 ```
+
+That installs packages, wires `$PREFIX/var/service/phone-agent` → `scripts/run.sh`,
+adds the Termux:Boot hook (wake-lock + start-services), enables and starts the
+service, and waits for `/health` 200.
+
+Lifecycle after bootstrap:
+```bash
+sv status phone-agent   # supervised state
+sv down phone-agent     # stop
+sv up phone-agent       # start (also restarts on crash automatically)
+tail $PREFIX/var/log/sv/phone-agent/current   # service log
+```
+
+Manual launch (debug only, native session): `bash scripts/run.sh`
 
 ## Test Procedure
 
@@ -95,21 +118,21 @@ route except `/health`. DNS-rebinding protection in the MCP SDK is disabled
 (it rejects non-localhost `Host` headers, breaking tailnet access; the
 token middleware is the gate).
 
-## Automate flow creation steps
+## Boot persistence
 
-You can start the server on boot using the Automate app or Termux:Boot.
+Handled by `scripts/bootstrap.sh`: Termux:Boot (companion app required) runs
+`~/.termux/boot/start-services.sh`, which takes a wake-lock and starts
+runsvdir; runit then brings up every enabled service, including `phone-agent`,
+and restarts it on crash. No Automate flow or hand-written boot script needed.
 
-### Automate App
-- Open Automate → New flow
-- Add "Flow beginning" block (trigger: Device boot)
-- Add "Wait" block (30 seconds)
-- Add "Shell command" block: `am startservice -n com.termux/.app.TermuxService -a com.termux.service_start -e com.termux.execute_cmd 'cd ~/phone-agent && .venv/bin/python main.py'`
-- Add "Loop" block (every 60s)
-- Add "Shell command" block: `curl -sf http://127.0.0.1:8462/health` — if exit code != 0, restart
+## Pre-merge verify battery (P4)
 
-### Termux:Boot Alternative
-Create `~/.termux/boot/phone-mcp.sh` (requires the Termux:Boot app):
+`scripts/verify.sh [BASE_URL]` runs the acceptance battery (health 200,
+bad-bearer 401, exact 7-tool list, ping, embed 384-dim/unit-norm) and exits
+nonzero on any failure. Token from `$PHONE_AGENT_TOKEN` or
+`~/.config/phone-agent/token`. The laptop runs it over the tailnet before
+every phase merge:
+
 ```bash
-#!/data/data/com.termux/files/usr/bin/sh
-cd ~/phone-agent && LD_LIBRARY_PATH=$HOME/phone-agent-runtime/lib .venv/bin/python main.py >> ~/.config/phone-agent/server.log 2>&1
+scripts/verify.sh http://100.101.229.9:8462
 ```
