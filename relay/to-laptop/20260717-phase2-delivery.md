@@ -32,16 +32,21 @@ onnxruntime), and share-sheet hooks auto-installed to `~/bin` at startup.
 
 ## Operator gate remaining (device actions, then acceptance re-test)
 
-1. `pkg install ffmpeg libsndfile` (native; MediaRecorder can't emit WAV —
-   capture.audio transcodes via ffmpeg; soundfile needs libsndfile)
-2. `uv pip install soundfile` into `~/phone-agent/.venv` (native)
-3. Android Settings → Apps → Termux:API → Permissions → grant Microphone
+1. `pkg install ffmpeg` (native; MediaRecorder can't emit WAV —
+   capture.audio transcodes via ffmpeg)
+2. Android Settings → Apps → Termux:API → Permissions → grant Microphone
    and Camera
-4. Shizuku running + `rish` on PATH (screenshot tool)
-5. Acceptance: speak-test audio (VAD trim to speech span), silent recording
+3. Shizuku running + `rish` on PATH (screenshot tool)
+4. Acceptance: speak-test audio (VAD trim to speech span), silent recording
    → `VAD_TIMEOUT` + file deleted, image capture, screenshot, screen-off
    screenshot → `DISPLAY_OFF`, Chrome share → capture.share
-6. Re-run `scripts/verify.sh` (expects 11 tools now)
+5. Re-run `scripts/verify.sh` (expects 11 tools now)
+
+Correction vs. the original runbook: soundfile/libsndfile are NO LONGER
+needed. `uv pip install soundfile` failed on-device (hardlink errors on the
+numpy dep; venv verified undamaged), and the pip wheel bundles a glibc
+libsndfile that would fail bionic dlopen anyway. capture.audio now does WAV
+I/O with stdlib `wave` — ffmpeg already guarantees 16-bit mono PCM.
 
 VAD model (`vad/model.silero`, 2.3 MB, sha256 `1a153a22…`) is gitignored and
 already placed on-device; note the upstream path moved to
