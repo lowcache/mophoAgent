@@ -1,0 +1,9 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# phone-agent share hook — installed to ~/bin by ingest/layout.py.
+# Invoked by Termux when a URL/text is shared to it (D10:
+# termux-share-receive does not exist).
+spool="$HOME/ingest/shares/spool"
+mkdir -p "$spool"
+printf '{"ts":"%s","type":"text","content":%s}\n' \
+    "$(date -Iseconds)" "$(printf '%s' "$1" | jq -Rs .)" \
+    > "$spool/$(date +%Y%m%d_%H%M%S)_$$.json"

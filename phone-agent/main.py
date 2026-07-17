@@ -66,9 +66,9 @@ if __name__ == "__main__":
     if not token_file_exists():
         print("Error: ~/.config/phone-agent/token missing. Generate with: openssl rand -hex 32 > ~/.config/phone-agent/token", file=sys.stderr)
         sys.exit(1)
-    from config.settings import INGEST_DIR
-    INGEST_DIR.mkdir(exist_ok=True)
-    (INGEST_DIR / ".gitkeep").touch()
+    from ingest.layout import ensure_ingest_dirs, ensure_share_hooks
+    ensure_ingest_dirs()
+    ensure_share_hooks()
     # Eager backends (whisper, embed) come up before we accept requests;
     # lazy ones (qwen) spawn on first use and unload after 30s idle.
     from npu import get_registry

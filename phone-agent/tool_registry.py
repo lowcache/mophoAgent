@@ -5,6 +5,10 @@ def register_all(mcp):
     import tools.embed
     import tools.classify
     import tools.infer
+    import tools.capture_audio
+    import tools.capture_image
+    import tools.capture_screenshot
+    import tools.capture_share
 
     tools.health.register(mcp)
     tools.transcribe.register(mcp)
@@ -12,3 +16,7 @@ def register_all(mcp):
     tools.embed.register(mcp)
     tools.classify.register(mcp)
     tools.infer.register(mcp)
+    tools.capture_audio.register(mcp)
+    tools.capture_image.register(mcp)
+    tools.capture_screenshot.register(mcp)
+    tools.capture_share.register(mcp)
