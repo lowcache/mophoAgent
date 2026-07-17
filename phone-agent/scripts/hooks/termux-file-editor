@@ -1,0 +1,12 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# phone-agent share hook — installed to ~/bin by ingest/layout.py.
+# Invoked by Termux when a file is shared to it. The file is copied
+# into the ingest tree first so it survives the sender's cleanup.
+spool="$HOME/ingest/shares/spool"
+dest="$HOME/ingest/shares"
+mkdir -p "$spool" "$dest"
+saved="$dest/$(date +%Y%m%d_%H%M%S)_$$_$(basename "$1")"
+cp "$1" "$saved"
+printf '{"ts":"%s","type":"file","content":%s}\n' \
+    "$(date -Iseconds)" "$(printf '%s' "$saved" | jq -Rs .)" \
+    > "$spool/$(date +%Y%m%d_%H%M%S)_$$.json"

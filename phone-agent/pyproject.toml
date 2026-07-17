@@ -9,6 +9,8 @@ dependencies = [
     "httpx",
     "Pillow>=10.0",
     "numpy>=1.26",
-    # onnxruntime (OCR) is not pip-installable on bionic; provided via
-    # Termux/TUR package — see phase-1 notes.
+    # needs libsndfile: pkg install libsndfile
+    "soundfile>=0.13",
+    # onnxruntime (OCR + Silero VAD) is not pip-installable on bionic;
+    # provided via Termux/TUR package — see phase-1 notes.
 ]

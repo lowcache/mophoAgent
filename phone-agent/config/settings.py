@@ -22,6 +22,11 @@ WHISPER_PORT = 8465  # whisper-server (whisper-small.en-q4_0)
 MODELS_DIR = Path.home() / "phone-agent" / "models"
 INGEST_DIR = Path.home() / "ingest"
 
+# Silero VAD ONNX model (Phase 2 capture.audio trim). Not in git
+# (models are operator-placed, like MODELS_DIR); see phase-2 notes.
+AGENT_DIR = Path(__file__).resolve().parent.parent
+VAD_MODEL_PATH = AGENT_DIR / "vad" / "model.silero"
+
 # Private root for backend binaries and their shared libs, populated from
 # extracted Termux .debs (llama-cpp) and the whisper.cpp source build.
 # Kept out of $PREFIX so the dpkg database stays truthful; `pkg install
