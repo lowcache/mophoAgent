@@ -1,7 +1,7 @@
 ---
 type: mistakes
 project: mophoAgent
-last_updated: 2026-07-14
+last_updated: 2026-07-17
 status: active
 ---
 
@@ -23,3 +23,9 @@ Symptom: systemd service unit written using `config.systemd.user.*` (home-manage
 
 ### 2026-07-14 — Placeholder iptables rules
 Symptom: `iptables -F && iptables -P ACCEPT` present as direct-routing fallback; destructive and ambiguous. Root cause: Placeholder during architecture drafting. Prevention: Removed; D3 and D9 now specify offline detection via curl/ICMP, not routing manipulation.
+
+### 2026-07-17 — Process scan self-matching strike three
+Symptom: Native process scan via `/proc/*/cmdline` case-glob for `*phone-agent*main.py*` matched the scan command's own shell and `head -1` handed it to `kill -TERM`, killing the scanning shell and misreading survivors as respawned pids. Third recurrence of this class bug (same as banned `pkill -f`). Root cause: Substring pattern in scan filter matched the scanning command's own cmdline, making the scan self-referential. Prevention: Any self-written process scan must exclude `$$` and ancestor pids OR match on `/proc/*/comm` + exact cwd/exe, never a substring that appears in the scan command itself. Prefer `/proc/*/comm` exact match + working directory verification.
+
+### 2026-07-17 — Phase 2 runbook prescribed pip native-lib dependency for bionic venv
+Symptom: Original phase-2 runbook instructed `pkg install libsndfile` + `uv pip install soundfile`. Operator encountered hardlink errors; inspection revealed soundfile ships a manylinux wheel with bundled glibc libsndfile — would fail bionic dlopen even if installation succeeded (same class as [[project-uv-dlopen-poisoned-inodes]]). Root cause: Runbook author did not account for pip wheel glibc-native-lib incompatibility with Android bionic. Prevention: Runbooks for native Termux venv must vet all pip dependencies for binary wheels; avoid any that bundle non-EABI native libs. For audio I/O, stdlib `wave` module suffices when ffmpeg guarantees output encoding (16-bit mono PCM).

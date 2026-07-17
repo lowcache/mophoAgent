@@ -12,8 +12,8 @@ status: active
 - [x] Spin up Claude Code; read phone/PHONE-ENV.md (build environment context)
 - [x] Phase 0: MCP skeleton (FastMCP server, health/state/dispatch endpoints, systemd service) — verified 2026-07-15
 - [x] Phase 1: NPU inference layer (whisper, OCR, embed, classify; CPU baseline) — committed 2026-07-16 @ da8849e; operator gate PASSED 2026-07-16; cross-tailnet sign-off 2026-07-16
-- [x] Phase 2: Capture tools (audio, image, screenshot, share) — committed 2026-07-17 @ bf0f01f; verify.sh 5/5 PASS over tailnet
-- [ ] Phase 2 operator gate: Install pkg ffmpeg+libsndfile; grant Termux:API permissions (mic, camera); test speech/VAD-trim, camera capture, screenshot (DISPLAY_OFF), Chrome share end-to-end; verify.sh rerun before Phase 3 start
+- [x] Phase 2: Capture tools (audio, image, screenshot, share) — committed 2026-07-17 @ bf0f01f; operator gate PASSED 2026-07-17; verify.sh 5/5 PASS over tailnet (2026-07-17)
+- [ ] Phase 2 post-incident: runit watchdog (battery-optimization exemption + max_phantom_processes validation at bootstrap); external termux-job-scheduler /health check
 - [ ] Phase 3: Processing pipelines (audio→text, image→ocr, share→extract)
 - [ ] Phase 4: Sensor tools (IMU, modem, GPS, light, proximity)
 - [ ] Phase 5: System tools (rish, exec, free_ram, notify)
