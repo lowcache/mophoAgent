@@ -24,6 +24,13 @@ status: active
 ## Laptop Build (Claude Code on laptop)
 - [ ] Phase 8: NixOS module (mcp-gateway peer, proximity hooks, network routing, ingest-sync timer)
 
+## Developer Workflow & Monitoring (Phase 3+)
+- [ ] ADB live monitoring infrastructure (dual-device concurrent workflow support)
+  - Background screencap loop: `while true; do adb exec-out screencap -p > latest.png; sleep 2; done` (rotate single file, decouple capture from read cadence)
+  - Verify scrcpy (human live mirror) and screencap/logcat (agent monitoring) can share single ADB connection without contention
+  - Filtered logcat tail as continuous text sense; on-demand screencap frames as visual punctuation (ceiling ~1 frame/2s to manage token cost)
+  - Integrate with Phase 3 runtime-stabilization health-check scaffolding (runit watchdog + termux-job-scheduler /health) rather than standalone
+
 ## Integration
 - [ ] Phone: phases 3–7 complete and tested; signal readiness via `relay/to-laptop/`
 - [ ] Laptop: merge `phone` → `main` (fast-forward after phone push)
