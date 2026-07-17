@@ -10,9 +10,9 @@ status: active
 ## Repository Structure
 - **Branches:** `main` (integration base), `phone` (phases 0–7), `laptop` (phase 8)
 - **Branch ownership:** claude-phone owns `phone` branch; claude-laptop owns `laptop` branch (phase 8) and all integration merges
-- **Latest commits:** `origin/phone` @ `c6c8b7b` (probe tailnet bind address, 2026-07-17); `laptop` @ ce840a2; `main` @ fdbe9a7
+- **Latest commits:** `origin/phone` @ `bc1208f` (relay: stabilization P0-P4 CLOSED, 2026-07-16); `laptop` @ ce840a2; `main` @ fdbe9a7
 - **Phase 1 status:** CLOSED (delivery @ da8849e, operator gate PASSED 2026-07-16, cross-tailnet sign-off verified 2026-07-16)
-- **Phase 2 prep:** Stabilization (P0–P4) implementation committed 72b04a1; verification infrastructure staged; awaiting operator action (bearer token + verify.sh battery run)
+- **Phase 2 prep:** P0–P4 stabilization CLOSED (verify.sh 5/5 green, 2026-07-16); Phase 2 core UNBLOCKED
 
 ## phoneAgentBuild Organization
 - `design/` — architecture specs: phone-mcp-tool-schema.md, npu-pipeline-graph.md, trigger-propagation-model.md, offline-autonomy-model.md, deepseek-system-prompt.md
@@ -23,7 +23,7 @@ status: active
 
 ## Relay (relay/)
 - `relay/to-laptop/` — phone→laptop messages; Phase 1 gate results (20260716-gate-results.md); Phase 2 status report (20260717-runtime-stabilization-done.md)
-- `relay/to-phone/` — laptop→phone messages; Phase 1 sign-off (20260716-0751-phase1-signoff.md) **CLOSED**; stabilization decision-request (20260716-0917-runtime-stabilization.md) **ANSWERED** (report 20260717)
+- `relay/to-phone/` — laptop→phone messages; Phase 1 sign-off (20260716-0751-phase1-signoff.md) **CLOSED**; stabilization decision-request (20260716-0917-runtime-stabilization.md) **CLOSED** (confirmation 2026-07-16)
 - `relay/archive/` — closed threads
 - Protocol: markdown + frontmatter `type: blocker|question|decision-request|handoff|fyi`, edited only by author
 
@@ -34,16 +34,16 @@ status: active
 - **Closure:** Relay flipped to status=closed; pushed origin/phone @ 6a11801 (2026-07-16)
 - **Incident:** Phone MCP server died after gate; relaunch restored /health 200. Not a persistent managed process — permanent fix (managed service + bootstrap.sh) is stabilization P0 (committed 72b04a1)
 
-## Phase 2 Preparation (2026-07-17, in progress)
+## Phase 2 Preparation (2026-07-16→2026-07-17; P0–P4 CLOSED, Phase 2 core UNBLOCKED)
 - **P0–P3 committed (72b04a1):** Managed service (termux-services runit + Termux:Boot + wake-lock); bootstrap.sh codification (LD_LIBRARY_PATH, thread pins, PREFIX, patchelf, UV_LINK_MODE, ANDROID_API_LEVEL, wake-lock contract); proot/native boundary enforcement (D11); native pkg install consolidation (pkg install fallback stubs)
-- **P4 verify infrastructure staged (2026-07-17):**
-  - verify.sh ready at phone-agent/scripts/verify.sh (battery: health 200, bearer-reject 401, 7-tool list, ping, 384-dim embed)
-  - Bearer token infrastructure: ~/.config/phone-agent/token (dir mode 700, file created, awaiting secret from phone)
-  - Tailnet path confirmed: `GET http://100.101.229.9:8462/health` → 200 from volnix (2026-07-17 16:45 UTC)
-- **VM and routing (user applied 2026-07-17):**
-  - microvm@tailscale: active (started), autostart flag enabled in vms.nix (pending make switch application)
-  - Route 100.64.0.0/10 via 192.168.101.2: active in routing table (manual ip route command; not yet persistent in vms.nix systemd.network)
-- **Operator action (blocking):** (1) Stop existing :8462 foreground process on phone; (2) Run phone-agent/scripts/bootstrap.sh in native Termux (starts runit service, waits health 200); (3) Place bearer token (64 hex) at ~/.config/phone-agent/token from phone's ~/.config/phone-agent/token; (4) Run phone-agent/scripts/verify.sh http://100.101.229.9:8462 from volnix (expected 5/5 green → closes stabilization gate, unblocks Phase 2 core)
+- **P4 verified (2026-07-16):** verify.sh battery ALL PASS 5/5 over Tailscale from volnix
+  - Health 200, bad-bearer 401, 7-tool list, ping, embed 384-dim/norm~1.0
+  - Bearer token: 64 bytes, mode 600, present at ~/.config/phone-agent/token on volnix
+  - Relay confirmation filed and pushed (bc1208f, 2026-07-16)
+- **VM and routing (persistent after make switch 2026-07-17):**
+  - microvm@tailscale: active, autostart flag enabled in vms.nix
+  - Route 100.64.0.0/10 via 192.168.101.2: declared in vms.nix `networks."11-tailscale-tap".routes`; syntax-checked valid
+  - Both pending `make switch` application; restore connectivity across reboot
 
 ## Phase 1 MCP Runtime (for reference; will be replaced by managed service on P0 completion)
 - **Server:** Hand-run foreground (termux-wake-lock; cd ~/phone-agent; LD_LIBRARY_PATH=$HOME/phone-agent-runtime/lib .venv/bin/python main.py); not persistent/managed
@@ -58,5 +58,5 @@ status: active
   - Guest: `services.tailscale.enable=true` (autostart enabled 2026-07-17, pending make switch)
   - Guest: `networking.nat` masquerade (SNAT via tailscale0)
   - Host: `networks."11-tailscale-tap".networkConfig.IPMasquerade="both"` ← **CRITICAL FIX (2026-07-16):** enables guest internet to reach Tailscale coordination server
-- **Networking:** vm-tailscale tap 192.168.101.1/24 ↔ guest 192.168.101.2/24; virtiofs /var/lib/tailscale; host route 100.64.0.0/10 via 192.168.101.2 (active via manual command; static declaration still missing from vms.nix)
-- **Artifact status:** vms.nix edits working via active `make switch` build; **autostart flag added 2026-07-17, route still manual** — recommend commit both before next rebuild
+- **Networking:** vm-tailscale tap 192.168.101.1/24 ↔ guest 192.168.101.2/24; virtiofs /var/lib/tailscale; host route 100.64.0.0/10 via 192.168.101.2 (declared in vms.nix, persistent after make switch)
+- **Artifact status:** vms.nix edits complete (autostart flag 2026-07-17, route declaration 2026-07-16); syntax-checked valid; pending `make switch` deployment
