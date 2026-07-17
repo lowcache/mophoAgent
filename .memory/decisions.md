@@ -1,7 +1,7 @@
 ---
 type: decisions
 project: mophoAgent
-last_updated: 2026-07-14
+last_updated: 2026-07-16
 status: active
 ---
 
@@ -47,6 +47,9 @@ If all fail, phone enters offline autonomous queue mode.
 - Blocklist: regex format, not shell globbing
 - Queue directory: `phone-agent/delivering/` with persistent retry_count (JSON per task)
 - Whisper model sizes: whisper-small=244M (not 94M), impacts storage/memory budget
+
+## D11 — Runtime Boundary Separation
+Proot-distro (Debian userland) reserved for dev only: editing prompts, cloning repos, git operations. Native Termux reserved for runtime: managed runit service lifecycle (termux-services), termux-api and device I/O calls, verification via loopback HTTP. Never launch the server or call termux-api from proot; this boundary prevents model-load overhead leakage into version control and ensures termux-api reliability.
 
 ## Branch and Integration Model
 **Ownership:** Claude-phone owns `phone` branch (phases 0–7 only). Claude-laptop owns `laptop` branch (phase 8) and performs all integration merges to main. Main branch is integration-only (never direct commits from either agent).
