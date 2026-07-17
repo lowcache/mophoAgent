@@ -9,8 +9,8 @@ dependencies = [
     "httpx",
     "Pillow>=10.0",
     "numpy>=1.26",
-    # needs libsndfile: pkg install libsndfile
-    "soundfile>=0.13",
+    # WAV I/O uses stdlib wave — soundfile/libsndfile deliberately absent
+    # (manylinux wheels bundle glibc libsndfile that fails bionic dlopen).
     # onnxruntime (OCR + Silero VAD) is not pip-installable on bionic;
     # provided via Termux/TUR package — see phase-1 notes.
 ]
