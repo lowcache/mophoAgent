@@ -18,6 +18,15 @@ CELL_TYPES = {
     "hspa": "HSPA", "hsdpa": "HSPA", "umts": "3G", "edge": "EDGE",
     "gprs": "GPRS", "cdma": "CDMA", "evdo_a": "EVDO", "iwlan": "IWLAN",
 }
+
+# Some Termux builds report network_type as the raw Android
+# TelephonyManager.NETWORK_TYPE_* integer (as a string) instead of a name.
+NUMERIC_CELL_TYPES = {
+    "1": "GPRS", "2": "EDGE", "3": "3G", "4": "CDMA", "5": "EVDO",
+    "6": "EVDO", "7": "1xRTT", "8": "HSPA", "9": "HSPA", "10": "HSPA",
+    "11": "iDEN", "12": "EVDO", "13": "LTE", "14": "eHRPD", "15": "HSPA+",
+    "16": "GSM", "17": "TD-SCDMA", "18": "IWLAN", "19": "LTE", "20": "5G_NR",
+}
 _NULL_BSSID = {"", "02:00:00:00:00:00", "00:00:00:00:00:00"}
 
 
@@ -87,8 +96,10 @@ def register(mcp):
         wifi_up = (wifi.get("supplicant_state") == "COMPLETED"
                    or (bssid and bssid not in _NULL_BSSID))
 
-        raw_cell = (tel.get("network_type") or "").lower()
-        cellular_type = CELL_TYPES.get(raw_cell, raw_cell.upper() or None)
+        raw_cell = str(tel.get("network_type") or "").lower()
+        cellular_type = (CELL_TYPES.get(raw_cell)
+                         or NUMERIC_CELL_TYPES.get(raw_cell)
+                         or (raw_cell.upper() or None))
         cell_up = bool(cellular_type) or tel.get("data_state") == "connected"
 
         if not wifi_up and not cell_up:

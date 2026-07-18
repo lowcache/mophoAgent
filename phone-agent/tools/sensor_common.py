@@ -35,11 +35,22 @@ _ROLE_SUBSTRINGS = {
     "magnetometer": "magnetic",
 }
 
+# Substrings that disqualify a match for a given role even though the role
+# substring is present. The S26 exposes a "Touch Proximity Sensor" — a
+# touchscreen palm-rejection virtual sensor that does not answer a plain
+# `-n 1` read — alongside the physical IR proximity sensor; skip it.
+_ROLE_EXCLUDE = {
+    "proximity": ("touch",),
+}
 
-def _select(names: list[str], substr: str) -> str | None:
-    """First name containing substr, preferring the calibrated, non-wakeup
-    variant (no "uncalibrated"/"wake"); fall back to the first match."""
-    matches = [n for n in names if substr in n.lower()]
+
+def _select(names: list[str], substr: str, exclude: tuple[str, ...] = ()) -> str | None:
+    """First name containing substr (and none of `exclude`), preferring the
+    calibrated, non-wakeup variant (no "uncalibrated"/"wake"); fall back to
+    the first match."""
+    matches = [n for n in names
+               if substr in n.lower()
+               and not any(x in n.lower() for x in exclude)]
     if not matches:
         return None
     for n in matches:
@@ -60,9 +71,13 @@ async def discover_sensors() -> dict[str, str]:
         names = []
     mapping: dict[str, str] = {}
     for role, substr in _ROLE_SUBSTRINGS.items():
-        name = _select(names, substr)
+        name = _select(names, substr, _ROLE_EXCLUDE.get(role, ()))
         if name is not None:
             mapping[role] = name
+    # Persist the full device sensor list too — ground truth for diagnosing
+    # role-match misses without needing to re-run termux-sensor by hand. The
+    # leading underscore keeps it out of role lookups.
+    mapping["_available"] = names
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     (CONFIG_DIR / "sensors.json").write_text(json.dumps(mapping, indent=2))
     return mapping
