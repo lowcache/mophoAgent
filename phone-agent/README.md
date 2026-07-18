@@ -1,6 +1,25 @@
-# Phone MCP Server (Phases 0–3)
+# Phone MCP Server (Phases 0–4)
 
 A persistent FastMCP Streamable-HTTP server that runs in Termux on the Galaxy S26 Ultra.
+
+## Phase 4: sensor tools
+
+Five single-shot hardware reads (`phone.sensor.read_{imu,modem,gps,light,proximity}`),
+all CPU-only (no NPU). `read_imu` bursts accelerometer+gyroscope via
+`termux-sensor` and runs an on-device activity inference
+(`sensors/activity.py` — a pure-stdlib rule set over six statistical
+features: mean/variance of accel magnitude, DFT peak frequency and
+high/low energy ratio, gravity angle, zero-crossing rate) yielding
+on_desk / in_hand / in_pocket / walking / stationary / unknown. `read_modem`
+reads WiFi association + cellular type from Termux:API (RSRP is a
+best-effort Shizuku/rish dumpsys read, null without Shizuku; first-hop
+latency is a single ping). `read_gps` uses the cached last-known fix
+(`termux-location -r last`, low power per D10) and tags the position against
+`config/geofences.json` (ships empty; operator fills it — no fabricated
+coordinates). `read_light`/`read_proximity` map raw sensor values to labels.
+Device-specific sensor names are discovered once via `termux-sensor -l` and
+cached in `~/.config/phone-agent/sensors.json` (`tools/sensor_common.py`).
+Single-shot only — continuous monitoring belongs to Phase 7/8.
 
 ## Phase 3: processing pipelines
 
