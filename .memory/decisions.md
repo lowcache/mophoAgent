@@ -1,7 +1,7 @@
 ---
 type: decisions
 project: mophoAgent
-last_updated: 2026-07-16
+last_updated: 2026-07-17
 status: active
 ---
 
@@ -50,6 +50,9 @@ If all fail, phone enters offline autonomous queue mode.
 
 ## D11 — Runtime Boundary Separation
 Proot-distro (Debian userland) reserved for dev only: editing prompts, cloning repos, git operations. Native Termux reserved for runtime: managed runit service lifecycle (termux-services), termux-api and device I/O calls, verification via loopback HTTP. Never launch the server or call termux-api from proot; this boundary prevents model-load overhead leakage into version control and ensures termux-api reliability.
+
+## D12 — Developer Monitoring Strategy
+Passive-and-advise model: user drives phone via scrcpy keybind (mopho-view), agent monitors via ADB screencap frames (mopho-watch) and advises on session health / tool correctness. No programmatic agent actuation on phone; all actions user-initiated. Decouples monitoring cadence from capture cadence for token efficiency.
 
 ## Branch and Integration Model
 **Ownership:** Claude-phone owns `phone` branch (phases 0–7 only). Claude-laptop owns `laptop` branch (phase 8) and performs all integration merges to main. Main branch is integration-only (never direct commits from either agent).

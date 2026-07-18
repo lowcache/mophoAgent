@@ -7,29 +7,26 @@ status: active
 
 # Open Tasks
 
-## Phone Build — Phase Core Tasks
-- [x] Clone mophoAgent repo into proot-distro on Galaxy S26 Ultra
-- [x] Spin up Claude Code; read phone/PHONE-ENV.md (build environment context)
-- [x] Phase 0: MCP skeleton (FastMCP server, health/state/dispatch endpoints, systemd service) — verified 2026-07-15
-- [x] Phase 1: NPU inference layer (whisper, OCR, embed, classify; CPU baseline) — committed 2026-07-16 @ da8849e; operator gate PASSED 2026-07-16; cross-tailnet sign-off 2026-07-16
-- [x] Phase 2: Capture tools (audio, image, screenshot, share) — committed 2026-07-17 @ bf0f01f; operator gate PASSED 2026-07-17; verify.sh 5/5 PASS over tailnet (2026-07-17)
-- [ ] Phase 3: Runtime stabilization — runit watchdog (battery-optimization exemption + max_phantom_processes raise at bootstrap; external termux-job-scheduler /health check)
-- [ ] Phase 3: Processing pipelines (audio→text, image→ocr, share→extract)
+## Phase 3 — PRIORITY: Runtime Stabilization
+- [ ] **CRITICAL: Runit watchdog + health check** — Address 2026-07-17 incident (idle-death after 12h+). Implement: (a) battery-optimization exemption for phone-agent service, (b) raise `max_phantom_processes` at bootstrap, (c) external health-check via termux-job-scheduler polling `/health` endpoint. Incident analysis suggests phantom-process-killer or OS app-kill; watchdog prevents silent failures.
+- [ ] Verify tools/list count in verify.sh — Phase 2 closed @ 11 tools; Phase 3 spec asserts 12 tools (audio→text, image→ocr, share→extract). Confirm discrepancy and update verify.sh accordingly before Phase 3 verify gate.
+- [ ] Processing pipelines (audio→text, image→ocr, share→extract) — currently in progress on phone agent as of 2026-07-18.
+- [ ] Commit Phase 3 per build-plan.md template
+
+## Phase 3 — Core Tasks (continuation)
 - [ ] Phase 4: Sensor tools (IMU, modem, GPS, light, proximity)
 - [ ] Phase 5: System tools (rish, exec, free_ram, notify)
 - [ ] Phase 6: Voice AI + offline autonomy (persistent voice session, offline queue)
 - [ ] Phase 7: Subconscious scheduler (event-driven task loop, priority queue, offline detection)
 - [ ] Commit each phase per build-plan.md commit message template; push to `phone` branch only
 
+## Dual-Session Viewer & Monitoring (2026-07-18)
+- [ ] **Dual-session viewer live test:** Press `Mod+Shift+V` to launch mopho workspace (kitty claude + scrcpy side-by-side). Verify layout, keybind resolution, and both panes functional. Defer until current scrcpy session complete.
+- [ ] **Agent monitoring channel verified:** mopho-watch deployed, one-frame proof captured and Read back. Continuous loop (2s cadence) ready on-demand. Passive-and-advise strategy active.
+- [ ] Record dual-session viewer delivery in `.memory/` against "ADB live monitoring infrastructure" todo (partially delivered; full ADB session attach remains blocked by D3 constraint).
+
 ## Laptop Build (Claude Code on laptop)
 - [ ] Phase 8: NixOS module (mcp-gateway peer, proximity hooks, network routing, ingest-sync timer)
-
-## Developer Workflow & Monitoring (Phase 3+)
-- [ ] ADB live monitoring infrastructure (dual-device concurrent workflow support)
-  - Background screencap loop: `while true; do adb exec-out screencap -p > latest.png; sleep 2; done` (rotate single file, decouple capture from read cadence)
-  - Verify scrcpy (human live mirror) and screencap/logcat (agent monitoring) can share single ADB connection without contention
-  - Filtered logcat tail as continuous text sense; on-demand screencap frames as visual punctuation (ceiling ~1 frame/2s to manage token cost)
-  - Integrate with Phase 3 runtime-stabilization health-check scaffolding (runit watchdog + termux-job-scheduler /health) rather than standalone
 
 ## Integration
 - [ ] Phone: phases 3–7 complete and tested; signal readiness via `relay/to-laptop/`
@@ -45,3 +42,4 @@ status: active
 - NPU via QNN SDK: blocked on llama.cpp QNN backend availability in Termux (revisit if mainline adds support)
 - Programmatic unlock: intentionally out-of-scope per D7 (security and UX constraint)
 - SSH phone↔laptop: design constraint per D3; not revisiting
+- True laptop-terminal attach to phone session: blocked by D3 (would require tailnet tmux socket, violates no-SSH stance)
