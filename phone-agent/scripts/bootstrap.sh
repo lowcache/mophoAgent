@@ -75,6 +75,21 @@ echo "==> termux-api sanity (needs the Termux:API companion app)"
 timeout 10 termux-battery-status >/dev/null \
     || echo "WARN: termux-api call failed — install/enable the Termux:API app"
 
+echo "==> phantom-process-killer mitigation via rish (best-effort, Android 12+)"
+# Value resets on reboot; bootstrap runs at boot via Termux:Boot, re-applying it.
+if command -v rish >/dev/null; then
+    rish -c "device_config set_sync_disabled_for_tests persistent" 2>/dev/null || true
+    rish -c "device_config put activity_manager max_phantom_processes 2147483647" 2>/dev/null || true
+    got=$(rish -c "device_config get activity_manager max_phantom_processes" 2>/dev/null | tr -d '[:space:]') || true
+    if [ "${got:-}" = 2147483647 ]; then
+        echo "PASS: max_phantom_processes=$got"
+    else
+        echo "WARN: max_phantom_processes read back '${got:-}' — phantom killer may still cull the tree"
+    fi
+else
+    echo "WARN: rish not on PATH — operator: set Battery -> Unrestricted for Termux and Termux:API (cannot be scripted)"
+fi
+
 echo "==> runit service dir: $SVDIR"
 mkdir -p "$SVDIR/log"
 cat > "$SVDIR/run" <<EOF

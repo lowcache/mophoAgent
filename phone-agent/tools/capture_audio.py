@@ -8,6 +8,7 @@ import numpy as np
 
 from config.settings import INGEST_DIR
 from ingest.store import generate_filename
+from ingest.capture_trigger import get_trigger
 from tools.capture_common import CaptureError, run_cli, raise_for_termux_api
 from vad.gate import VADGate
 
@@ -89,10 +90,12 @@ def register(mcp):
             out_path = generate_filename("audio", "raw", "wav")
             await asyncio.to_thread(_write_wav, out_path, trimmed, sr)
             peak = float(np.max(np.abs(trimmed))) if len(trimmed) else 0.0
-            return {"audio_path": str(out_path),
-                    "duration_sec": round(len(trimmed) / sr, 1),
-                    "peak_level_db": round(20 * math.log10(peak), 1) if peak > 0 else -120.0,
-                    "vad_triggered": True}
+            result = {"audio_path": str(out_path),
+                      "duration_sec": round(len(trimmed) / sr, 1),
+                      "peak_level_db": round(20 * math.log10(peak), 1) if peak > 0 else -120.0,
+                      "vad_triggered": True}
+            get_trigger().on_capture("audio", result)
+            return result
         except CaptureError as e:
             return {"error": e.code, "message": e.message}
         finally:

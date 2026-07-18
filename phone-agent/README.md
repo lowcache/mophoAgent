@@ -1,6 +1,23 @@
-# Phone MCP Server (Phase 0 skeleton + Phase 1 inference)
+# Phone MCP Server (Phases 0–3)
 
 A persistent FastMCP Streamable-HTTP server that runs in Termux on the Galaxy S26 Ultra.
+
+## Phase 3: processing pipelines
+
+Three linear DAG pipelines (`pipeline/`) chain capture + NPU tools:
+audio→transcript, image→OCR (EXIF/deskew correction, reading-order merge),
+share→classify/extract/summarize/embed. Captures auto-trigger their
+pipeline (`ingest/capture_trigger.py`, fire-and-forget; image shares route
+to OCR); `phone.pipeline.run` triggers manually. Output JSON lands in
+`~/ingest/processed/{transcripts,ocr,summaries}/`, failures in
+`~/ingest/errors/` with partial context. URL extraction is a stdlib
+`html.parser` scorer (`pipeline/extract_html.py`) — every readability
+library needs lxml/C extensions, which cannot load in the bionic venv.
+Summaries only for >500-word content, head-truncated to fit qwen's
+1024-token context, skipped when the inference queue is saturated.
+Liveness: `scripts/watchdog.sh` (external /health probe re-running
+bootstrap; install via `scripts/watchdog-install.sh`, termux-job-scheduler
+every 15 min) plus bootstrap's rish `max_phantom_processes` mitigation.
 
 ## Phase 1: inference runtime
 
