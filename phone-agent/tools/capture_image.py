@@ -1,5 +1,6 @@
 import asyncio
 
+from ingest.capture_trigger import get_trigger
 from ingest.store import generate_filename
 from tools.capture_common import CaptureError, run_cli, raise_for_termux_api
 
@@ -34,8 +35,10 @@ def register(mcp):
                 exif["iso"] = int(exif_raw[EXIF_ISO])
             if exif_raw.get(EXIF_FOCAL_LENGTH) is not None:
                 exif["focal_length"] = round(float(exif_raw[EXIF_FOCAL_LENGTH]), 2)
-            return {"image_path": str(out_path), "width": width,
-                    "height": height, "exif": exif}
+            result = {"image_path": str(out_path), "width": width,
+                      "height": height, "exif": exif}
+            get_trigger().on_capture("image", result)
+            return result
         except CaptureError as e:
             out_path.unlink(missing_ok=True)
             return {"error": e.code, "message": e.message}

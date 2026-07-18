@@ -2,6 +2,7 @@ import asyncio
 import shutil
 from pathlib import Path
 
+from ingest.capture_trigger import get_trigger
 from ingest.store import generate_filename
 from tools.capture_common import CaptureError, run_cli
 
@@ -43,7 +44,9 @@ def register(mcp):
                 out_path.unlink(missing_ok=True)
                 raise CaptureError("DISPLAY_OFF",
                                    "screen is off (all-black frame deleted)")
-            return {"image_path": str(out_path), "width": width, "height": height}
+            result = {"image_path": str(out_path), "width": width, "height": height}
+            get_trigger().on_capture("screenshot", result)
+            return result
         except CaptureError as e:
             return {"error": e.code, "message": e.message}
         finally:

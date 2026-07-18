@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 
 from config.settings import INGEST_DIR
+from ingest.capture_trigger import get_trigger
 
 SPOOL_DIR = INGEST_DIR / "shares" / "spool"
 SHARES_DIR = INGEST_DIR / "shares"
@@ -37,7 +38,9 @@ def register(mcp):
                 if kind not in ("text", "url", "image", "file"):
                     return {"error": "SHARE_NOT_SUPPORTED",
                             "message": f"unsupported share type {kind!r}"}
-                return {"type": kind, "content": content, "source_app": None}
+                result = {"type": kind, "content": content, "source_app": None}
+                get_trigger().on_capture("share", result)
+                return result
             if time.monotonic() >= deadline:
                 return {"error": "TIMEOUT",
                         "message": f"no share received within {timeout_sec}s"}
