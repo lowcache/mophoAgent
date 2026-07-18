@@ -1,7 +1,7 @@
 ---
 type: mistakes
 project: mophoAgent
-last_updated: 2026-07-17
+last_updated: 2026-07-18
 status: active
 ---
 
@@ -29,3 +29,6 @@ Symptom: Native process scan via `/proc/*/cmdline` case-glob for `*phone-agent*m
 
 ### 2026-07-17 — Phase 2 runbook prescribed pip native-lib dependency for bionic venv
 Symptom: Original phase-2 runbook instructed `pkg install libsndfile` + `uv pip install soundfile`. Operator encountered hardlink errors; inspection revealed soundfile ships a manylinux wheel with bundled glibc libsndfile — would fail bionic dlopen even if installation succeeded (same class as [[project-uv-dlopen-poisoned-inodes]]). Root cause: Runbook author did not account for pip wheel glibc-native-lib incompatibility with Android bionic. Prevention: Runbooks for native Termux venv must vet all pip dependencies for binary wheels; avoid any that bundle non-EABI native libs. For audio I/O, stdlib `wave` module suffices when ffmpeg guarantees output encoding (16-bit mono PCM).
+
+### 2026-07-18 — Job ID mismatch in Phase 3 watchdog relay
+Symptom: Phase 3 delivery relay specified `termux-job-scheduler --pending` should confirm job 462; operator confirmed job 4623 instead. Root cause: Unclear — either (a) relay typo, (b) scheduler assigned different ID than code expected, or (c) misunderstood flag semantics in watchdog-install.sh. Prevention: When writing automation instructions referencing external tool output (IDs, state values), verify on a test run before baking into relay. Do not infer or assume ID values; always confirm empirically.

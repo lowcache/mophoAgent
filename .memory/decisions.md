@@ -1,7 +1,7 @@
 ---
 type: decisions
 project: mophoAgent
-last_updated: 2026-07-17
+last_updated: 2026-07-18
 status: active
 ---
 
@@ -10,7 +10,7 @@ status: active
 ## D1 — Transport Layer
 MCP Streamable HTTP (FastMCP+uvicorn) running native Termux on port TS-IP:8462 with bearer token auth. Rejects stdio: phone server must persist across multiple client calls and handle concurrent requests from laptop and on-device inference tasks. Decision driven by model-reload cost and sessionless design constraint.
 
-## D2 — Phone Build Environment  
+## D2 — Phone Build Environment
 Claude Code runs in proot-distro (Debian userland). Edit prompts and code from proot via bind mount; run the MCP server with native Termux Python (termux-api only works in native runtime). Proot provides full package ecosystem without root; native server keeps termux-api available.
 
 ## D3 — Cross-Device Communication
@@ -53,6 +53,12 @@ Proot-distro (Debian userland) reserved for dev only: editing prompts, cloning r
 
 ## D12 — Developer Monitoring Strategy
 Passive-and-advise model: user drives phone via scrcpy keybind (mopho-view), agent monitors via ADB screencap frames (mopho-watch) and advises on session health / tool correctness. No programmatic agent actuation on phone; all actions user-initiated. Decouples monitoring cadence from capture cadence for token efficiency.
+
+## D13 — Share Pipeline Processing Scope
+Given Qwen2-0.5B model context limits (1024 tok per stage, 256 tok for embed), share pipeline truncates input: summarize stage receives first 2500 chars, embed stage receives first 800 chars. Long-form documents (>~500 words) lose tail content silently. Deferred scope ceiling, not a blocking constraint. Revisit with longer-context model if share processing must preserve full-document fidelity.
+
+## D14 — URL/HTML Readability Constraint (Bionic venv)
+Due to bionic libc ABI incompatibility (no lxml/C extension bindings in Termux venv), share pipeline uses stdlib `html.parser`-based readability scorer instead of full-featured libraries (readability-lxml, trafilatura, justext, goose3, newspaper4k, resiliparse — all blocked). Trade-off: lower fidelity vs. ABI safety. Revisit if lxml bindings become available in Termux or if a pure-Python readability library emerges.
 
 ## Branch and Integration Model
 **Ownership:** Claude-phone owns `phone` branch (phases 0–7 only). Claude-laptop owns `laptop` branch (phase 8) and performs all integration merges to main. Main branch is integration-only (never direct commits from either agent).

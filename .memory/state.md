@@ -1,7 +1,7 @@
 ---
 type: state
 project: mophoAgent
-last_updated: 2026-07-17
+last_updated: 2026-07-18
 status: active
 ---
 
@@ -10,64 +10,69 @@ status: active
 ## Repository Structure
 - **Branches:** `main` (integration base), `phone` (phases 0–7), `laptop` (phase 8)
 - **Branch ownership:** claude-phone owns `phone` branch; claude-laptop owns `laptop` branch (phase 8) and all integration merges
-- **Latest commits:** `origin/phone` @ `629c2f2` (phase 2 laptop sign-off relay + inbox 2026-07-17); `laptop` @ ce840a2; `main` @ fdbe9a7
-- **Phase 1 status:** CLOSED (delivery @ da8849e, operator gate PASSED 2026-07-16, cross-tailnet sign-off verified 2026-07-16)
-- **Phase 2 status:** CLOSED (operator gate PASSED on-device 2026-07-17, bf0f01f; laptop cross-tailnet verify.sh 5/5 PASS 2026-07-17; laptop sign-off committed @ 629c2f2)
-- **Phase 3 status:** IN PROGRESS (operator gave go 2026-07-17; runtime-stabilization endorsed; processing-pipelines implementation active as of 2026-07-18)
+- **Current commit state:**
+  - `origin/phone` @ `2bcff48` (Phase 3 delivery relay, 2026-07-17)
+  - local `phone` @ `c440d34` (Phase 3 sign-off + memory commits, 5 ahead / 0 behind — clean fast-forward)
+  - `laptop` @ ce840a2; `main` @ fdbe9a7
+- **Phase 1 status:** CLOSED (2026-07-16)
+- **Phase 2 status:** CLOSED (2026-07-17)
+- **Phase 3 status:** CLOSED (2026-07-18; pipelines verified 5/5 over tailnet)
+- **Phase 4 status:** IN PROGRESS (sensor tools locally committed @ fa9d214, not pushed)
+
+## Phase 3 Closure (2026-07-18) — Pipelines Verified
+- **Deliverable:** Processing pipelines (audio→text, image→ocr, share→extract) + `phone.pipeline.run` manual tool; code @ `3fac7e2` (tag `phone-mcp-phase-3`)
+- **Tool surface:** 12 tools (Phase 2: 11 capture/ingest; Phase 3: +1 pipeline.run)
+- **Independent laptop verification over tailnet (100.101.229.9:8462), 2026-07-18:**
+  - `/health` 200 ✓, bad bearer 401 ✓, `/tools/list` 12 tools ✓, `phone.system.ping` ✓, `phone.npu.embed` 384-dim norm ~1.0 ✓
+  - Verification result: **5/5 PASS** (verify.sh independent run by laptop)
+- **Pipeline implementations:**
+  - `phone.pipeline.run` — multi-stage DAG: auto-trigger via browser share hooks, manual invocation, dispatch to workers (audio-transcript, image-ocr, share-extract)
+  - Audio: Whisper-small (244M), Silero v5 VAD (offline); transcription + confidence output
+  - Image: easyocr (GPU optional); detected text + bboxes
+  - Share: HTML readability via stdlib `html.parser` scorer; Qwen2-0.5B summarize (2500 char input cap); Qwen2-0.5B embed (800 char cap)
+- **Known trade-offs (documented in D13, D14):** Share truncation on long docs (>~500 words); stdlib readability scorer (no lxml in bionic venv)
+- **Sign-off:** Laptop sign-off relay committed locally @ `relay/to-phone/20260718-phase3-signoff.md` (c440d34); push pending Phase 4 quiescence
+
+## Phase 4 Status — IN PROGRESS (2026-07-18)
+- **Scope:** Sensor tools (IMU, modem, GPS, light, proximity) + geofence configuration
+- **Locally committed (not pushed as of 02:15 UTC):**
+  - feat commit @ `fa9d214`: `phone/tools/sensor_{imu,modem,gps,light,proximity}.py` (5 tools); `config/geofences.json`; `phone/tools/sensor_common.py`
+  - Delivery relay to laptop being written (Phase 4 handoff in progress)
+- **Verification:** Factual API-correctness review active (verifying Termux-API D10 corrections against sensor files)
+- **Expected next:** Relay commit + tag + push (imminent)
+
+## Runtime Stabilization & Watchdog (Phase 3 Action Item) — PARTIALLY LIVE
+- **Incident (2026-07-17, ~16:34 UTC):** Native runit supervision tree died after 12h+ idle (suspected phantom-process-killer)
+- **Mitigation code delivered (Phase 3 @ 3fac7e2):**
+  - `bootstrap.sh` phantom-process guard
+  - `watchdog.sh` `/health` probe + restart logic
+  - `watchdog-install.sh` → termux-job-scheduler job
+- **Activation status:**
+  - **#1 Install + verify: DONE (2026-07-18)** — Operator ran `watchdog-install.sh` in native session; `termux-job-scheduler --pending` confirms job present (ID: 4623; relay specified 462 — job ID discrepancy noted in mistakes.md)
+  - **#2 Battery exemption: PENDING** — Termux + Termux:API must be set to Battery→Unrestricted (required for watchdog to survive idle kill; not yet confirmed)
+  - **#3 Optional reboot check: PENDING** (deferred until #2 confirmed)
+- **Defense status:** Watchdog code in place; job installed; battery exemption blocks full activation. Not yet shielded against phantom-process-killer without #2.
+
+## Developer Monitoring (2026-07-18)
+- **mopho-watch:** ADB screencap @ `~/.local/bin/mopho-watch`; PNG at `~/mopho/latest.png` (2s cadence). Capture verified working; frame read confirmed readable.
+- **mopho-view:** Dual-session viewer (kitty claude + scrcpy on niri workspace "mopho"); keybind `Mod+Shift+V`. Not yet live-tested (deferred to preserve Phase 4 session).
+- **Background monitor (bgbj2xnwk):** Polling `origin/phone` + `/health` every 40s; will wake on Phase 4 push or health drop. Active since 2026-07-18.
 
 ## phoneAgentBuild Organization
-- `design/` — architecture specs: phone-mcp-tool-schema.md, npu-pipeline-graph.md, trigger-propagation-model.md, offline-autonomy-model.md, deepseek-system-prompt.md
-- `phone/` — phases 0–7: PHONE-ENV.md, `prompts/phase-{0..7}-*.md`
-- `laptop/` — phase 8 prompt and integration work
-- `DECISIONS.md` — authoritative D1–D11 (design constraints override prompts/design/)
+- `design/` — architecture specs (phone-mcp-tool-schema.md, npu-pipeline-graph.md, trigger-propagation-model.md, offline-autonomy-model.md, deepseek-system-prompt.md)
+- `phone/` — phases 0–7: PHONE-ENV.md, `prompts/phase-{0..7}-*.md`, `tools/{sensor,capture,ingest,pipeline}*.py`, `config/geofences.json`
+- `laptop/` — phase 8 NixOS module work
+- `DECISIONS.md` — D1–D14 (design constraints and known limitations)
 - `build-plan.md` — eight-phase structure with commit templates
+- `scripts/verify.sh` — pre-merge battery (expect 12 tools as of Phase 3)
 
 ## Relay (relay/)
-- `relay/to-laptop/` — phone→laptop messages; Phase 1 gate results (20260716-gate-results.md); Phase 2 delivery & gate-passed (20260717-phase2-*.md) **CLOSED**
-- `relay/to-phone/` — laptop→phone messages; Phase 1 sign-off (20260716-0751-phase1-signoff.md) **CLOSED**; stabilization decision (20260716-0917-runtime-stabilization.md) **CLOSED**; Phase 2 sign-off (20260717-phase2-signoff.md) **CLOSED**
+- `relay/to-laptop/` — phone→laptop; Phase 1–3 closures recorded; Phase 4 delivery in progress
+- `relay/to-phone/` — laptop→phone; Phase 1–3 closures recorded; Phase 3 sign-off committed locally 2026-07-18
 - `relay/archive/` — closed threads
 - Protocol: markdown + frontmatter `type: blocker|question|decision-request|handoff|fyi`, edited only by author
 
-## Phase 2 Closure (2026-07-17) — COMPLETE
-- **Delivery:** Capture tools (audio, image, screenshot, share) @ bf0f01f
-- **On-device operator gate:** Speech/VAD-trim, camera capture, screenshot (DISPLAY_OFF), browser share end-to-end — ALL PASS (2026-07-17)
-- **Cross-tailnet verification:** Laptop independently re-ran verify.sh (2026-07-17) → 5/5 PASS; /health 200, bad bearer 401, tools/list 11 tools, ping, embed (384-dim, norm ~1.0)
-- **Capture tools (4):** `phone.capture.{audio,image,screenshot,share}`
-  - Audio: m4a via termux-microphone-record → ffmpeg transcode to WAV (stdlib wave I/O; soundfile removed)
-  - Image: Android camera via rish (Shizuku bridge); requires Termux:API + camera permission
-  - Screenshot: framebuffer dump via Termux:API (DISPLAY_OFF)
-  - Share: Browser share hooks auto-installed to ~/bin (marker-guarded); supports Chrome, Brave, and any share-capable browser
-- **VAD:** Silero v5 onnxruntime (lazy singleton `vad/gate.py`). Model: src/silero_vad/data/silero_vad.onnx (2.3 MB). Input shape [2,b,128]/sr verified.
-- **Ingest layer:** Queue directory `phone-agent/delivering/` with persistent retry_count (JSON per task); tools `phone.ingest.{list,fetch}`
-- **Dependencies:** ffmpeg only (libsndfile dropped; stdlib wave I/O used instead). Termux:API permissions required (mic, camera).
-- **Closure:** Phone gate @ bf0f01f (2026-07-17); laptop cross-tailnet verification 5/5 PASS + relay sign-off @ 629c2f2 (2026-07-17)
-- **Incident (2026-07-17, ~16:34 UTC):** Native runit supervision tree died after 12h+ idle gap. All procs (uvicorn :8462, llama :8463/:8464, whisper :8465, sshd :8022, runsv/runsvdir) offline; supervise/pid stale since 04:14. Recovery: operator-only (native Termux session auto-starts runsvdir via termux-services profile.d, or run scripts/bootstrap.sh; then `sv up phone-agent`). Suspected phantom-process-killer or OS background app kill (proot session survived, not device reboot). **Phase 3 action PRIORITY: runit watchdog + battery-optimization exemption + external health check.**
-
-## Developer Monitoring Infrastructure (2026-07-18)
-- **mopho-watch** — agent-monitoring channel via ADB screencap; rotates single PNG at `~/mopho/latest.png` (capture cadence 2s default, decoupled from read). Deployed to `~/.local/bin/mopho-watch`; verified with one-frame capture (432 KB PNG, readable). Modes: `--once` for on-demand, no-arg for continuous loop.
-- **mopho-view** — dual-session viewer on niri; layouts kitty claude + scrcpy side-by-side on dedicated `workspace "mopho"`; keybind `Mod+Shift+V { spawn-sh "$HOME/.local/bin/mopho-view"; }` (absolute path, niri hot-reloaded 2026-07-18T01:47:58). Deployed to `~/.local/bin/mopho-view`. scrcpy 4.0 with `--keyboard=uhid` passthrough verified; Termux foregrounded. **Not yet live-tested** (user deferred to preserve active session).
-- **niri config.kdl** — edited lines 105 (`workspace "mopho"`), 205 (bind); validated via `niri validate`; hot-reloaded by running niri.
-- **Monitoring strategy:** Passive-and-advise; user drives via scrcpy, agent reads frames/artifacts on demand and advises.
-
-## NetworkManager Tether Metric (2026-07-17 → 2026-07-18)
-- **Problem:** USB tether auto-connects with metric 100 (default ethernet), hijacking default route from WiFi (metric 600); throttled provider + inconsistent.
-- **Solution:** Declarative `networking.networkmanager.settings` in `~/.nix-config/nixos/configuration.nix`:
-  - `[connection-tether-lowprio]` section matches `driver:rndis_host,driver:cdc_ether,driver:cdc_ncm` and sets `ipv4.route-metric=700`.
-- **Status:** Committed, deployed via `make switch` 2026-07-18; verified live: WiFi (metric 600) default, tether at 700 (connected, non-hijacking). Durable across reboots/re-plugs.
-- **Usage:** Tether only used when `nmcli connection down"<wifi>"` or explicit `nmcli device connect <usb-iface>` (opt-in, not automatic).
-
-## Phase 1 MCP Runtime (for reference; managed service in progress)
-- **Server:** Native Termux runit service via termux-services (pending bootstrap.sh codification)
-- **Build:** ~/phone-agent-runtime (hand-extracted .debs: llama-server, whisper, onnxruntime, numpy, PIL); native Termux venv exists
-- **Known gaps:** Watchdog for idle-death scenarios (Phase 3 action item)
-
-## Tailscale Mesh (volnix VM, active as of 2026-07-17)
-- **Status:** VM joined tailnet via auto-key auth; exit-node active; online in admin console; mesh connectivity to phone verified (100.101.229.9:8462 answers on tailnet)
-- **Config applied in ~/.nix-config/nixos/vms.nix (via `make switch`, pending):**
-  - Guest: `services.tailscale.authKeyFile=/var/lib/tailscale/authkey` (auto-join reusable key)
-  - Guest: `services.tailscale.extraUpFlags=["--advertise-exit-node"]`
-  - Guest: `services.tailscale.enable=true` (autostart enabled 2026-07-17, pending make switch)
-  - Guest: `networking.nat` masquerade (SNAT via tailscale0)
-  - Host: `networks."11-tailscale-tap".networkConfig.IPMasquerade="both"` (enables guest internet to Tailscale coordination)
-- **Networking:** vm-tailscale tap 192.168.101.1/24 ↔ guest 192.168.101.2/24; virtiofs /var/lib/tailscale; host route 100.64.0.0/10 via 192.168.101.2
-- **Artifact status:** vms.nix edits complete; syntax-checked valid; pending `make switch` deployment
+## Tailscale Mesh & Networking
+- **volnix microVM:** Tailnet-joined via auto-key; exit-node active; 100.101.229.9:8462 reachable from laptop; meshes to phone over Tailscale
+- **NixOS vms.nix edits:** Pending `make switch` deployment (autostart, exit-node, NAT, static route 100.64.0.0/10)
+- **USB tether metric:** Deployed via NetworkManager settings (metric 700, WiFi 600) 2026-07-18; durable across reboots
