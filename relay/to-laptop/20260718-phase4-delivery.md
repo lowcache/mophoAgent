@@ -8,9 +8,13 @@ status: open
 
 # Phase 4 delivery: sensor tools (tag `phone-mcp-phase-4`, fa9d214)
 
-Five CPU-only single-shot sensor reads. Built and verified **offline** in
-proot (no device I/O available there — live termux-api is operator-gated,
-same as phases 1–3). Not yet deployed to the native runtime.
+Five CPU-only single-shot sensor reads. **DEPLOYED and live-verified
+on-device** 2026-07-18: native clone fast-forwarded to `5a092ad`, runit
+respawn confirmed, `/health` 200, `tools/list` = 17, and all 5 sensor
+tools return correct live data over the tailnet (5/5, see Live Acceptance
+below). Includes fix commit `5a092ad` for two issues the live gate found.
+Still pending: laptop `verify.sh` sign-off + two physical-orientation
+operator checks.
 
 ## What shipped (5 new tools → 17 total)
 
@@ -46,6 +50,34 @@ same as phases 1–3). Not yet deployed to the native runtime.
   attempted but did not return a usable verdict in print mode). Definitive
   validation is the on-device gate below.
 
+## Live acceptance (2026-07-18, on-device over the tailnet)
+
+Deployed via the validated pattern (proot commit → native
+`git fetch /root/mophoAgent phone && merge --ff-only` → SIGTERM the server
+pid, runit respawns on new code). All 5 tools driven over HTTP (server runs
+termux-api natively — proot stays an HTTP client, D11 respected):
+
+- **read_light**: 106 lux → `indoor_bright`. ✓
+- **read_proximity**: 5.0 cm, `is_covered:false` (uncovered). ✓
+- **read_imu**: 48 samples, inference `stationary` @ 0.47 (phone lying
+  still but not flat). ✓ functional — the physical on_desk>0.9 / walking
+  checks need a human moving the device.
+- **read_modem**: WiFi association (ssid/bssid/signal −49 dBm),
+  `cellular_type:IWLAN`, RSRP −113 (Shizuku live), first-hop 15.5 ms. ✓
+- **read_gps**: real cached fix, accuracy 34.5 m, `geofence:null`
+  (config empty). ✓
+
+Two fixes from this gate (commit `5a092ad`):
+1. Proximity discovery was selecting the "Touch Proximity Sensor" (a
+   touchscreen palm-rejection virtual sensor that doesn't answer `-n 1`) →
+   READ_ERROR. Added a per-role exclusion so proximity skips "touch"; it now
+   resolves to a physical proximity sensor and reads cleanly. Discovery also
+   now persists the full `termux-sensor -l` list under sensors.json
+   `_available`.
+2. read_modem returned `cellular_type:"18"` — this Termux build reports
+   `network_type` as the raw Android `TelephonyManager.NETWORK_TYPE_*`
+   integer. Added the numeric→label map (18→IWLAN, 13→LTE, 20→5G_NR, …).
+
 ## Deviations from the phase-4 prompt (flagging, not hiding)
 
 - **Classifier is pure-Python, not sklearn.** numpy/sklearn wheels bundle
@@ -74,26 +106,29 @@ same as phases 1–3). Not yet deployed to the native runtime.
   output; timestamps synthesized from the interval (classifier needs only
   relative dt).
 
-## Operator gate items (phone-side, need a human on-device)
+## Operator gate items (phone-side)
 
-1. Grant Termux:API permissions: **Sensors/Body Sensors** and **Location**
-   (Settings → Apps → Termux:API → Permissions). Without these the sensor
-   and GPS reads return PERMISSION_DENIED.
-2. First `read_imu`/`read_light`/`read_proximity` triggers sensor-name
-   discovery — confirm accel/gyro/light/proximity names resolve on the S26
-   and land in `~/.config/phone-agent/sensors.json`.
-3. Live acceptance (phase-4 Test Procedure): desk→on_desk >0.9; walk→
-   walking; read_modem WiFi SSID+signal (and cellular type on mobile);
-   read_gps outdoors matches real location; read_light across 5 levels;
-   read_proximity covered→is_covered:true.
-4. Optional: Shizuku running → confirm cellular RSRP populates (else null).
-5. Deploy per the validated pattern: proot commit → native
-   `git fetch /root/mophoAgent phone && merge --ff-only` → restart runit
-   service → `scripts/verify.sh` (expect 5/5 @ 17 tools).
+DONE this session: Termux:API Sensors + Location permissions granted;
+deployed + rediscovered; 5/5 live sweep green (above). Remaining items all
+need a human physically handling the device:
 
-Laptop side: once deployed, please run
-`scripts/verify.sh http://100.101.229.9:8462` over the tailnet (expect
-5/5 @ 17 tools) and sign off per the phase-merge ritual.
+1. **IMU orientation checks** (I can't move the phone): lay it flat on a
+   desk → expect `on_desk` > 0.9; walk with it → expect `walking`. The
+   at-rest read already returns `stationary` correctly.
+2. **Proximity physical check**: cover the top of the phone → expect
+   `is_covered:true`. Discovery currently resolves proximity to "Palm
+   Proximity Sensor version 2" (it answers single reads; the physical
+   "STK33F15 Proximity …Strm…" variant and the "Touch Proximity" virtual
+   sensor were skipped). If the palm sensor doesn't track sustained
+   coverage the way you want, the full sensor list is in sensors.json
+   `_available` for a re-pick.
+3. **Geofences**: fill `~/.config/phone-agent/geofences.json` (or the
+   packaged `config/geofences.json`) with `{ "home": {lat,lon,radius_m}, … }`
+   to get non-null `geofence` from read_gps.
+
+Laptop side: please run `scripts/verify.sh http://100.101.229.9:8462` over
+the tailnet (expect 5/5 @ 17 tools) and sign off per the phase-merge ritual.
+Server is already live at `5a092ad`.
 
 ## Note on the still-open Phase 3 gate
 
