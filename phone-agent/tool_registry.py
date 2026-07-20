@@ -15,6 +15,10 @@ def register_all(mcp):
     import tools.sensor_gps
     import tools.sensor_light
     import tools.sensor_proximity
+    import tools.sys_rish
+    import tools.sys_exec
+    import tools.sys_free_ram
+    import tools.sys_notify
 
     tools.health.register(mcp)
     tools.transcribe.register(mcp)
@@ -32,3 +36,7 @@ def register_all(mcp):
     tools.sensor_gps.register(mcp)
     tools.sensor_light.register(mcp)
     tools.sensor_proximity.register(mcp)
+    tools.sys_rish.register(mcp)
+    tools.sys_exec.register(mcp)
+    tools.sys_free_ram.register(mcp)
+    tools.sys_notify.register(mcp)

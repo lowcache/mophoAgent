@@ -1,6 +1,30 @@
-# Phone MCP Server (Phases 0–4)
+# Phone MCP Server (Phases 0–5)
 
 A persistent FastMCP Streamable-HTTP server that runs in Termux on the Galaxy S26 Ultra.
+
+## Phase 5: system tools
+
+Four system-level tools (`tools/sys_*.py`, shared plumbing in
+`tools/sys_common.py`). `phone.system.rish` runs a command at shell uid
+through Shizuku's rish — **Shizuku must be installed and running on the
+phone; that is the operator's responsibility**, and rish must be on the
+service PATH (`~/bin`, per run.sh). `phone.system.termux_exec` runs a command
+in Termux's bash at the unprivileged Termux uid. `phone.system.free_ram`
+`am force-stop`s non-critical background apps (never system UI, launcher,
+Termux, Shizuku, or messengers) until `/proc/meminfo` MemAvailable reaches
+the target; the reported `freed_mb` is the real meminfo delta, never the
+~100 MB/app loop-exit estimate. `phone.system.notify` posts a notification
+via `termux-notification` with a self-generated `--id` (D10).
+
+Every command entering rish — including free_ram's internal `pidof` /
+`am force-stop` — is screened against `config/rish_blocklist.txt` (one
+**regex** per line, installed to `~/.config/phone-agent/` on first use and
+re-read on mtime change). It is a safety net against accidents, **not a
+security boundary**: anyone who can edit the file can empty it. Loading
+fails **closed** — an unreadable or patternless blocklist raises
+`BLOCKLIST_UNAVAILABLE` rather than letting rish run unscreened.
+`termux_exec` is deliberately *not* blocklisted; it is an unrestricted
+command primitive gated only by the bearer token and the tailnet (D1).
 
 ## Phase 4: sensor tools
 

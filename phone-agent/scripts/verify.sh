@@ -46,7 +46,7 @@ code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 -X POST "$BASE/mcp" 
     -d '{"jsonrpc":"2.0","id":0,"method":"tools/list","params":{}}' || echo 000)
 [ "$code" = 401 ] && ok "bad bearer -> 401" || bad "bad bearer -> $code (want 401)"
 
-# 3 — tools/list: exact phase-1+2+3+4 tool set
+# 3 — tools/list: exact phase-1+2+3+4+5 tool set
 rpc 1 tools/list '{}' | python3 -c '
 import json, sys
 want = sorted(["phone.system.ping", "phone.system.state",
@@ -57,10 +57,12 @@ want = sorted(["phone.system.ping", "phone.system.state",
                "phone.pipeline.run",
                "phone.sensor.read_imu", "phone.sensor.read_modem",
                "phone.sensor.read_gps", "phone.sensor.read_light",
-               "phone.sensor.read_proximity"])
+               "phone.sensor.read_proximity",
+               "phone.system.rish", "phone.system.termux_exec",
+               "phone.system.free_ram", "phone.system.notify"])
 got = sorted(t["name"] for t in json.load(sys.stdin)["result"]["tools"])
 sys.exit(0 if got == want else print(f"got {got}") or 1)
-' && ok "tools/list -> expected 17 tools" || bad "tools/list mismatch"
+' && ok "tools/list -> expected 21 tools" || bad "tools/list mismatch"
 
 # 4 — ping round-trip
 rpc 2 tools/call '{"name":"phone.system.ping","arguments":{}}' | python3 -c '
