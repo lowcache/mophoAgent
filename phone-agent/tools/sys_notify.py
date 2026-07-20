@@ -19,8 +19,10 @@ def register(mcp):
         heads-up with sound, "low" is silent and minimized, "normal" goes
         quietly to the shade; click_action is a shell command run on tap.
         Returns the notification_id. Honours Do Not Disturb — under total
-        silence even high priority may be suppressed. Errors: TITLE_EMPTY,
-        NOTIFY_FAILED, COMMAND_NOT_FOUND."""
+        silence even high priority may be suppressed. Text goes through the
+        shared command blocklist, so a title or body containing a bare token
+        like "wipe_data" is refused. Errors: TITLE_EMPTY, NOTIFY_FAILED,
+        FORBIDDEN_COMMAND, BLOCKLIST_UNAVAILABLE, COMMAND_NOT_FOUND."""
         if not title.strip():
             return {"error": "TITLE_EMPTY",
                     "message": "Android requires a non-empty title"}

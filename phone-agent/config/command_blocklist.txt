@@ -1,0 +1,46 @@
+# Commands the phone.system.* tools refuse to run.
+#
+# Screens BOTH phone.system.rish (shell uid) and phone.system.termux_exec
+# (Termux uid). These are NOT two privilege tiers: termux_exec inherits the
+# service PATH, which run.sh puts ~/bin on, so it can invoke rish directly —
+# one room, two doors. Both doors get the same lock.
+#
+# One REGEX per line, matched with re.search against the raw (un-lowercased)
+# command; blank lines and #-comments ignored. Regex, not fnmatch: the
+# literal string "rm -rf /" never matches "rm -rf / --no-preserve-root" (D10).
+#
+# This is a safety net, not a security boundary. It stops accidents, not
+# attacks — anyone who can edit this file can empty it, and a caller holding
+# the bearer token owns the device regardless (D1). Installed to
+# ~/.config/phone-agent/command_blocklist.txt on first use; edits there are
+# picked up on the next call without restarting the service.
+
+# File system destruction
+^rm\s+(-[a-zA-Z-]+\s+)*/(\s|$|\*)
+
+# Termux home / prefix destruction. Losing these costs the models (multi-GB,
+# hand-placed), the venv, the bearer token, and the native clone with its
+# core.createObject=rename setting — the likeliest real accident on this
+# device. Guards the ROOTS only: `rm -rf ~/ingest/tmp` and `rm -rf
+# $PREFIX/bin` stay allowed.
+^rm\s+(-[a-zA-Z-]+\s+)*(~|\$\{?HOME\}?|\$\{?PREFIX\}?|/data/data/com\.termux/files(/(home|usr))?|/sdcard)(/|/\*|\*)?(\s|$)
+
+# Load-bearing subtrees inside the Termux home.
+^rm\s+(-[a-zA-Z-]+\s+)*(~|\$\{?HOME\}?)/(phone-agent/models|phone-agent-runtime|phone-agent|mophoAgent|\.config/phone-agent)(/|/\*|\*)?(\s|$)
+
+# Partition manipulation
+^mkfs\.
+^fdisk
+^dd\s+.*if=/dev/(zero|u?random)
+
+# System modification
+mount\s+-o\s+remount,rw\s+/
+
+# Factory reset
+wipe_data
+recovery\s+--wipe_data
+^fastboot
+
+# Bootloader
+flash_image
+unlock_bootloader

@@ -158,7 +158,7 @@ unlock_bootloader
 
 
 class TestShippedBlocklist(unittest.TestCase):
-    """Drive the real config/rish_blocklist.txt, not a copy of it — otherwise
+    """Drive the real config/command_blocklist.txt, not a copy of it — otherwise
     the shipped file could drift from the patterns the tests assert on and
     nothing would fail."""
 
@@ -191,6 +191,32 @@ class TestShippedBlocklist(unittest.TestCase):
                     check_blocklist(cmd)
                 self.assertEqual(ctx.exception.code, "FORBIDDEN_COMMAND")
 
+    def test_shipped_file_blocks_termux_tree_destruction(self) -> None:
+        # The likeliest real accident here: wiping the agent's own tree.
+        for cmd in ["rm -rf ~", "rm -rf ~/", "rm -rf ~/*", "rm -rf $HOME",
+                    "rm -rf ${HOME}", "rm -rf $PREFIX", "rm -rf ${PREFIX}",
+                    "rm -rf /data/data/com.termux/files",
+                    "rm -rf /data/data/com.termux/files/home",
+                    "rm -rf /data/data/com.termux/files/usr",
+                    "rm -rf /sdcard", "rm -fr ~", "rm -r -f ~",
+                    "rm -rf ~/phone-agent", "rm -rf ~/phone-agent/models",
+                    "rm -rf ~/phone-agent-runtime", "rm -rf ~/mophoAgent",
+                    "rm -rf $HOME/mophoAgent", "rm -rf ~/.config/phone-agent"]:
+            with self.subTest(cmd=cmd):
+                with self.assertRaises(SystemToolError) as ctx:
+                    check_blocklist(cmd)
+                self.assertEqual(ctx.exception.code, "FORBIDDEN_COMMAND")
+
+    def test_shipped_file_allows_deletion_below_the_guarded_roots(self) -> None:
+        # Guarding the roots must not make the tree read-only; ordinary
+        # cleanup under them stays allowed.
+        for cmd in ["rm -rf ~/ingest/tmp", "rm -rf $PREFIX/bin",
+                    "rm -rf ~/phone-agent/models.bak",
+                    "rm -f ~/ingest/staged/old.json",
+                    "rm -rf /sdcard/Download/junk"]:
+            with self.subTest(cmd=cmd):
+                check_blocklist(cmd)
+
     def test_shipped_file_allows_operational_commands(self) -> None:
         # The commands free_ram itself issues must never be self-blocked.
         for cmd in ["echo hello", "pidof -s com.android.chrome",
@@ -199,6 +225,46 @@ class TestShippedBlocklist(unittest.TestCase):
                     "device_config put activity_manager max_phantom_processes 2147483647"]:
             with self.subTest(cmd=cmd):
                 check_blocklist(cmd)
+
+
+class TestRunShellIsScreened(unittest.TestCase):
+    """run_shell must screen before it touches the filesystem or a shell, so
+    the guard holds off-device (no Termux bash here) and cannot be dodged by
+    passing a bad workdir."""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        repo = Path(__file__).resolve().parent.parent
+        self.patch_config = patch("tools.sys_common.CONFIG_DIR",
+                                  Path(self.temp_dir.name) / "config")
+        self.patch_agent = patch("tools.sys_common.AGENT_DIR", repo)
+        self.patch_config.start()
+        self.patch_agent.start()
+        sys_common._blocklist_cache = None
+
+    def tearDown(self) -> None:
+        sys_common._blocklist_cache = None
+        self.patch_agent.stop()
+        self.patch_config.stop()
+        self.temp_dir.cleanup()
+
+    def test_run_shell_refuses_blocklisted_command(self) -> None:
+        import asyncio
+        with self.assertRaises(SystemToolError) as ctx:
+            asyncio.run(sys_common.run_shell("rm -rf ~"))
+        self.assertEqual(ctx.exception.code, "FORBIDDEN_COMMAND")
+
+    def test_blocklist_precedes_workdir_validation(self) -> None:
+        # A nonexistent workdir must not shadow the blocklist verdict.
+        import asyncio
+        with self.assertRaises(SystemToolError) as ctx:
+            asyncio.run(sys_common.run_shell("rm -rf ~", workdir="/no/such/dir"))
+        self.assertEqual(ctx.exception.code, "FORBIDDEN_COMMAND")
+
+    def test_rish_invocation_is_reachable_from_exec(self) -> None:
+        # Documents WHY run_shell is screened: this command is not itself
+        # blocklisted, and it is how termux_exec reaches shell uid.
+        sys_common.check_blocklist("rish -c 'echo hi'")
 
 
 if __name__ == "__main__":

@@ -10,8 +10,11 @@ def register(mcp):
         """Execute `command` in Termux's bash (not Android's /system/bin/sh)
         with `workdir` as cwd; `~` and `$HOME` expand. Returns stdout,
         stderr, exit_code, execution_time_ms. Runs at the unprivileged
-        Termux uid — use phone.system.rish for shell-uid work. Errors:
-        WORKDIR_NOT_FOUND, TIMEOUT, COMMAND_NOT_FOUND."""
+        Termux uid, but is screened by the same blocklist as phone.system.rish
+        — it inherits the service PATH and can invoke rish itself, so the two
+        are not separate privilege tiers. Errors: FORBIDDEN_COMMAND,
+        BLOCKLIST_UNAVAILABLE, WORKDIR_NOT_FOUND, TIMEOUT,
+        COMMAND_NOT_FOUND."""
         try:
             return await run_shell(command, timeout_sec=timeout_sec,
                                    workdir=workdir)

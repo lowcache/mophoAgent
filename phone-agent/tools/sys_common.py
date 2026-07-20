@@ -14,7 +14,7 @@ from config.settings import AGENT_DIR, CONFIG_DIR
 # to Termux's bash, never Android's /system/bin/sh.
 TERMUX_BASH = "/data/data/com.termux/files/usr/bin/bash"
 
-BLOCKLIST_NAME = "rish_blocklist.txt"
+BLOCKLIST_NAME = "command_blocklist.txt"
 
 # A successful Shizuku liveness probe is trusted this long. The guardrail
 # asks for a per-call check; probing on literally every call would cost an
@@ -101,7 +101,11 @@ def load_blocklist() -> list[re.Pattern]:
 
 
 def check_blocklist(command: str) -> None:
-    """Raise FORBIDDEN_COMMAND if `command` matches any blocklist pattern."""
+    """Raise FORBIDDEN_COMMAND if `command` matches any blocklist pattern.
+    Applied to every command entering rish AND Termux bash — note this also
+    screens the command notify builds, so a notification whose title or body
+    contains a bare token like "wipe_data" is refused. Visible and
+    recoverable; a silent second door into the same commands would not be."""
     for pattern in load_blocklist():
         if pattern.search(command):
             raise SystemToolError(
@@ -113,8 +117,13 @@ def check_blocklist(command: str) -> None:
 
 async def run_shell(command: str, timeout_sec: float = 30.0,
                     workdir: str = "~") -> dict:
-    """Run `command` through Termux's bash in `workdir`. Errors:
-    WORKDIR_NOT_FOUND, TIMEOUT, COMMAND_NOT_FOUND (exit 127)."""
+    """Run `command` through Termux's bash in `workdir`. Blocklisted like
+    rish: termux_exec inherits the service PATH (run.sh puts ~/bin on it),
+    so it can invoke rish directly — screening only rish would leave the
+    same destructive commands one hop away. Errors: FORBIDDEN_COMMAND,
+    BLOCKLIST_UNAVAILABLE, WORKDIR_NOT_FOUND, TIMEOUT, COMMAND_NOT_FOUND
+    (exit 127)."""
+    check_blocklist(command)
     cwd = Path(workdir).expanduser()
     if not cwd.is_dir():
         raise SystemToolError("WORKDIR_NOT_FOUND", f"{workdir} is not a directory")

@@ -35,16 +35,17 @@ go exploring. Changes I made to the drafts are listed under Review below.
   meets target.
 - `tools/sys_notify.py` — `phone.system.notify(title, body, priority,
   click_action)`: `termux-notification` with a self-generated `--id`.
-- `config/rish_blocklist.txt` — regex-per-line blocklist, auto-installed to
+- `config/command_blocklist.txt` — regex-per-line blocklist screening BOTH
+  rish and termux_exec, auto-installed to
   `~/.config/phone-agent/` on first use.
-- `tests/test_sys_blocklist.py` — 10 offline tests, no Android needed.
+- `tests/test_sys_blocklist.py` — 15 offline tests, no Android needed.
 
 ## Offline verification (all green)
 
-- `tests/test_sys_blocklist.py` — **10/10 PASS**. Covers the D10 regression
+- `tests/test_sys_blocklist.py` — **15/15 PASS**. Covers the D10 regression
   case (`rm -rf / --no-preserve-root` blocked where fnmatch would miss it),
   comment/blank handling, bad-regex tolerance, fail-closed, mtime reload,
-  and two tests that drive the **real shipped** `config/rish_blocklist.txt`
+  and tests that drive the **real shipped** `config/command_blocklist.txt`
   so the file cannot drift from the assertions.
 - `py_compile` clean on all new modules + `tool_registry.py`.
 - Stub-MCP register → **21 tools, no duplicates**, exactly matching the
@@ -87,14 +88,47 @@ no termux-api, same constraint as Phases 2–4.
    reported as not-found rather than returning its exit_code. Flagging in
    case you would rather have the raw result.
 
+## Correction (2026-07-20, after operator review) — read this first
+
+An earlier revision of this relay described `rish` and `termux_exec` as two
+privilege tiers and justified leaving `termux_exec` unscreened on that
+basis. **That was wrong and is now fixed in code.** `termux_exec` inherits
+the service environment, and `run.sh:17` puts `$HOME/bin` first on PATH —
+where rish lives — so `termux_exec {"command":"rish -c '…'"}` reaches shell
+uid with the blocklist never consulted. Not two tiers; one room with two
+doors, and the lock was on the door that was already harder to open.
+
+Changed:
+1. **Both tools are screened by the same list**, enforced inside
+   `run_shell` (so notify's constructed command goes through it too — there
+   is no unscreened path to a shell).
+2. **`config/rish_blocklist.txt` → `config/command_blocklist.txt`.** The old
+   name was actively misleading once the list governed both tools. Free
+   rename: Phase 5 is not deployed, so no installed copy exists to migrate.
+   Deviates from the phase-5 prompt's filename — flagging deliberately.
+3. **Added Termux-tree patterns.** The device-level entries the prompt
+   shipped (mkfs/fdisk/fastboot/bootloader/wipe) are all *shell-uid-only*
+   commands, so the original list guarded nothing that could plausibly go
+   wrong by accident at Termux uid — while `rm -rf ~` (models, venv, bearer
+   token, native clone with its core.createObject=rename) went straight
+   through both tools. Now guarded at the roots: `~`, `$HOME`, `$PREFIX`,
+   `/data/data/com.termux/files{,/home,/usr}`, `/sdcard`, plus
+   `phone-agent`, `phone-agent/models`, `phone-agent-runtime`, `mophoAgent`,
+   `.config/phone-agent`. Deletion *below* a guarded root stays allowed —
+   tests assert both directions.
+
+Known cost of uniform enforcement: notify's text is screened too, so a
+notification whose title or body contains a bare token like `wipe_data` is
+refused. Chose that over a bypass path — a visible, recoverable failure
+beats a silent second door.
+
 ## Please look at these two
 
 - **Blast radius.** `rish` + `termux_exec` together make the MCP endpoint a
-  full remote shell — shell-uid and Termux-uid respectively. That is what
-  Phase 5 asks for, and it is gated by the bearer token and the tailnet
-  (D1), but it does change what a token leak costs. `termux_exec` is
-  deliberately *not* blocklisted (an unprivileged shell that filters `rm`
-  would be security theatre). Worth a second opinion on whether the token
+  full remote shell. That is what Phase 5 asks for, and it is gated by the
+  bearer token and the tailnet (D1), but it does change what a token leak
+  costs. The blocklist does not change that and is not claimed to — it is
+  accident prevention only. Worth a second opinion on whether the token
   alone is the right gate now.
 - **Notification ids restart at 1 with the service** (`itertools.count(1)`,
   as the prompt specifies). After a bounce a reused id replaces whatever
@@ -109,6 +143,10 @@ no termux-api, same constraint as Phases 2–4.
 3. `phone.system.rish {"command":"rm -rf / --no-preserve-root"}` →
    `FORBIDDEN_COMMAND` (**do not** run this before confirming step 2 proves
    the blocklist path is live).
+3b. Same via the other door — `phone.system.termux_exec
+   {"command":"rm -rf ~"}` → `FORBIDDEN_COMMAND`, and
+   `phone.system.termux_exec {"command":"rm -rf ~/ingest/tmp"}` → allowed.
+   This is the fix for the tiering error; verify both directions.
 4. Stop Shizuku → rish → `SHIZUKU_NOT_RUNNING`; restart → next call works
    (proves failures are not cached).
 5. `phone.system.termux_exec {"command":"ls ~/ingest/"}` → listing.

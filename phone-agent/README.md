@@ -16,15 +16,30 @@ the target; the reported `freed_mb` is the real meminfo delta, never the
 ~100 MB/app loop-exit estimate. `phone.system.notify` posts a notification
 via `termux-notification` with a self-generated `--id` (D10).
 
-Every command entering rish — including free_ram's internal `pidof` /
-`am force-stop` — is screened against `config/rish_blocklist.txt` (one
-**regex** per line, installed to `~/.config/phone-agent/` on first use and
-re-read on mtime change). It is a safety net against accidents, **not a
-security boundary**: anyone who can edit the file can empty it. Loading
-fails **closed** — an unreadable or patternless blocklist raises
-`BLOCKLIST_UNAVAILABLE` rather than letting rish run unscreened.
-`termux_exec` is deliberately *not* blocklisted; it is an unrestricted
-command primitive gated only by the bearer token and the tailnet (D1).
+Every command entering **either** rish or Termux bash — including
+free_ram's internal `pidof` / `am force-stop` and the command notify builds
+— is screened against `config/command_blocklist.txt` (one **regex** per
+line, installed to `~/.config/phone-agent/` on first use and re-read on
+mtime change). Loading fails **closed**: an unreadable or patternless
+blocklist raises `BLOCKLIST_UNAVAILABLE` rather than running unscreened.
+
+`rish` and `termux_exec` are **not** two privilege tiers, and the code no
+longer pretends otherwise. `termux_exec` inherits the service PATH, which
+`run.sh` puts `~/bin` on, so it can simply invoke `rish` — screening only
+rish would leave every guarded command exactly one hop away. Both are
+screened by the same list. Beyond the device-level entries (mkfs, fdisk,
+fastboot, bootloader, factory reset), the list guards the **roots** of the
+Termux tree — `~`, `$HOME`, `$PREFIX`, `/data/data/com.termux/files`,
+`/sdcard`, and the load-bearing subtrees (`phone-agent`, `phone-agent/models`,
+`phone-agent-runtime`, `mophoAgent`, `.config/phone-agent`) — because losing
+those costs the hand-placed multi-GB models, the venv, the bearer token, and
+the native clone. Deletion *below* a guarded root stays allowed.
+
+It remains a safety net against accidents, **not a security boundary**:
+anyone who can edit the file can empty it, and a caller holding the bearer
+token owns the device regardless (D1). Note the screen applies to notify's
+text too, so a title or body containing a bare token like `wipe_data` is
+refused — visible and recoverable, unlike a silent second door.
 
 ## Phase 4: sensor tools
 

@@ -8,8 +8,8 @@ def register(mcp):
     async def rish(command: str, timeout_sec: int = 10) -> dict:
         """Execute `command` through Shizuku's rish shell (ADB/shell-level
         privileges). Returns stdout, stderr, exit_code, execution_time_ms.
-        Commands matching ~/.config/phone-agent/rish_blocklist.txt are
-        refused. Errors: FORBIDDEN_COMMAND, BLOCKLIST_UNAVAILABLE,
+        Commands matching ~/.config/phone-agent/command_blocklist.txt are
+        refused (the same list screens phone.system.termux_exec). Errors: FORBIDDEN_COMMAND, BLOCKLIST_UNAVAILABLE,
         SHIZUKU_NOT_RUNNING, TIMEOUT, RISH_ERROR."""
         try:
             return await rish_call(command, timeout_sec=timeout_sec)
