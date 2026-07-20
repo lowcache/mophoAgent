@@ -162,7 +162,13 @@ async def _probe_rish(path: str, timeout_sec: float) -> bool:
         proc = await asyncio.to_thread(_run)
     except (subprocess.TimeoutExpired, OSError):
         return False
-    return b"rish_ok" in proc.stdout
+    # This rish build routes command output to stderr on some invocations —
+    # observed live with Shizuku healthy: exit 0, stdout empty, stderr
+    # "rish_ok". Checking stdout alone therefore reported SHIZUKU_NOT_RUNNING
+    # intermittently while Shizuku was fine. With the service actually down
+    # it exits 1 and prints "Server is not running", so gate on the exit code
+    # and accept the token from either stream.
+    return proc.returncode == 0 and b"rish_ok" in (proc.stdout + proc.stderr)
 
 
 async def ensure_rish(timeout_sec: float = 5.0) -> str:

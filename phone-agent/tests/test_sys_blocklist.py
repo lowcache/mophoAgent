@@ -267,5 +267,32 @@ class TestRunShellIsScreened(unittest.TestCase):
         sys_common.check_blocklist("rish -c 'echo hi'")
 
 
+class TestRishLivenessProbe(unittest.TestCase):
+    """Regression cover for a live-gate bug: the probe checked only stdout,
+    but this rish build routes command output to stderr on some invocations,
+    so a healthy Shizuku was intermittently reported SHIZUKU_NOT_RUNNING."""
+
+    def _probe(self, returncode: int, stdout: bytes, stderr: bytes) -> bool:
+        import asyncio
+        from unittest.mock import MagicMock
+        proc = MagicMock(returncode=returncode, stdout=stdout, stderr=stderr)
+        with patch("tools.sys_common.subprocess.run", return_value=proc):
+            return asyncio.run(sys_common._probe_rish("/fake/rish", 5.0))
+
+    def test_token_on_stdout_is_alive(self) -> None:
+        self.assertTrue(self._probe(0, b"rish_ok\n", b""))
+
+    def test_token_on_stderr_is_alive(self) -> None:
+        # The observed live case that produced the false negative.
+        self.assertTrue(self._probe(0, b"", b"rish_ok\n"))
+
+    def test_service_down_is_dead(self) -> None:
+        # Real Shizuku-down output: exit 1, "Server is not running".
+        self.assertFalse(self._probe(1, b"", b"Server is not running\n"))
+
+    def test_nonzero_exit_is_dead_even_with_token(self) -> None:
+        self.assertFalse(self._probe(1, b"rish_ok\n", b""))
+
+
 if __name__ == "__main__":
     unittest.main()
