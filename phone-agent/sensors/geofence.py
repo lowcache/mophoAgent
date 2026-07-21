@@ -43,3 +43,25 @@ def check_geofence(lat: float, lon: float) -> str | None:
         except (KeyError, TypeError, ValueError):
             continue
     return None
+
+
+def evaluate_location(lat: float, lon: float) -> dict:
+    """Single-pass geofence evaluation over one load_geofences() read.
+
+    Returns {"geofence": <name of the first fence containing (lat,lon), or
+    None>, "distance_m": <distance in metres to the NEAREST fence centre, or
+    None when no valid fences are defined>}. Malformed entries are skipped."""
+    inside: str | None = None
+    nearest: float | None = None
+    for name, fence in load_geofences().items():
+        try:
+            d = haversine(lat, lon, fence["lat"], fence["lon"])
+            radius = fence["radius_m"]
+        except (KeyError, TypeError, ValueError):
+            continue
+        if nearest is None or d < nearest:
+            nearest = d
+        if inside is None and d <= radius:
+            inside = name
+    return {"geofence": inside,
+            "distance_m": round(nearest, 1) if nearest is not None else None}
