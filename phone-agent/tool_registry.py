@@ -19,6 +19,12 @@ def register_all(mcp):
     import tools.sys_exec
     import tools.sys_free_ram
     import tools.sys_notify
+    import tools.voice_ask
+    import tools.voice_start
+    import tools.voice_stop
+    import tools.queue_sync
+    import tools.queue_deliver
+    import tools.queue_clear_failed
 
     tools.health.register(mcp)
     tools.transcribe.register(mcp)
@@ -40,3 +46,9 @@ def register_all(mcp):
     tools.sys_exec.register(mcp)
     tools.sys_free_ram.register(mcp)
     tools.sys_notify.register(mcp)
+    tools.voice_ask.register(mcp)
+    tools.voice_start.register(mcp)
+    tools.voice_stop.register(mcp)
+    tools.queue_sync.register(mcp)
+    tools.queue_deliver.register(mcp)
+    tools.queue_clear_failed.register(mcp)
