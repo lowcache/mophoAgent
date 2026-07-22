@@ -113,6 +113,14 @@ if "$AGENT/scripts/verify.sh" "$BASE"; then ok "verify.sh (incl. 27 tools)"
 else bad "verify.sh battery (see lines above)"; fi
 
 # --- 4. behavioral ---
+# The FIRST inference after a bounce cold-loads the lazy qwen LLM backend
+# (:8463): that call alone can take ~30-60s and LOOKS hung but isn't. Warm it
+# first so the checks below are quick, and breadcrumb each step so any pause is
+# attributable rather than mistaken for a hang.
+info "warming local LLM (cold-load after a bounce can take ~60s — this is normal)…"
+call phone.npu.llm_infer '{"prompt":"hi","max_tokens":1}' >/dev/null 2>&1 || true
+
+info "check: voice.ask (text -> local) — speaks via TTS"
 resp=$(call phone.voice.ask '{"text":"what is two plus two"}')
 src=$(printf '%s' "$resp" | field source)
 err=$(printf '%s' "$resp" | field error)
@@ -121,6 +129,7 @@ if [ "$src" = "local" ] && [ -z "$err" ] && [ -n "$ans" ]; then
   ok "voice.ask text -> source=local, response=\"$ans\"  (listen: TTS should have spoken it)"
 else bad "voice.ask text (source=$src err=$err response=\"$ans\")"; fi
 
+info "check: voice.start / voice.stop"
 resp=$(call phone.voice.start '{}')
 err=$(printf '%s' "$resp" | field error)
 [ "$err" = "WAKE_WORD_UNAVAILABLE" ] && ok "voice.start -> WAKE_WORD_UNAVAILABLE (by design)" \
@@ -130,6 +139,7 @@ resp=$(call phone.voice.stop '{}')
 st=$(printf '%s' "$resp" | field status)
 [ "$st" = "stopped" ] && ok "voice.stop -> stopped" || bad "voice.stop -> status=$st"
 
+info "check: queue seed -> sync -> deliver -> sync"
 # queue round-trip (no enqueue tool yet — auto-enqueue is the Phase-7 deferral)
 iid=$(python3 - <<'PY'
 import json, os, secrets, time
@@ -153,7 +163,7 @@ resp=$(call phone.queue.sync '{}')
 dc=$(printf '%s' "$resp" | field delivered_count)
 { [ "$dc" -ge 1 ] 2>/dev/null && ok "queue.sync -> delivered_count=$dc"; } || bad "queue.sync -> delivered_count=$dc"
 
-# complex routing: pass on either valid state, report which
+info "check: voice.ask (complex -> laptop | local_offline) — speaks a short preview"
 resp=$(call phone.voice.ask '{"text":"debug why my build fails and explain the fix"}')
 src=$(printf '%s' "$resp" | field source)
 case "$src" in
