@@ -59,7 +59,14 @@ class VoiceSession:
             )
 
             self.state = SPEAKING
-            await self.tts.speak(response)
+            # Speaking is best-effort: the response is already produced, so a
+            # slow/wedged TTS must not hold the call open or fail the cycle.
+            # (tts.speak already caps to a short preview; this bounds it anyway.)
+            try:
+                await asyncio.wait_for(self.tts.speak(response),
+                                       self.state_timeout_sec)
+            except asyncio.TimeoutError:
+                pass
 
             self.state = IDLE
             return {"response": response, "source": source, "transcript": text}
