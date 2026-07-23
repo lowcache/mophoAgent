@@ -62,10 +62,13 @@ want = sorted(["phone.system.ping", "phone.system.state",
                "phone.system.free_ram", "phone.system.notify",
                "phone.voice.ask", "phone.voice.start", "phone.voice.stop",
                "phone.queue.sync", "phone.queue.deliver",
-               "phone.queue.clear_failed"])
+               "phone.queue.clear_failed",
+               "phone.scheduler.start", "phone.scheduler.stop",
+               "phone.scheduler.status", "phone.scheduler.add_task",
+               "phone.scheduler.remove_task"])
 got = sorted(t["name"] for t in json.load(sys.stdin)["result"]["tools"])
 sys.exit(0 if got == want else print(f"got {got}") or 1)
-' && ok "tools/list -> expected 27 tools" || bad "tools/list mismatch"
+' && ok "tools/list -> expected 32 tools" || bad "tools/list mismatch"
 
 # 4 — ping round-trip
 rpc 2 tools/call '{"name":"phone.system.ping","arguments":{}}' | python3 -c '

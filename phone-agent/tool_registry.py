@@ -25,6 +25,11 @@ def register_all(mcp):
     import tools.queue_sync
     import tools.queue_deliver
     import tools.queue_clear_failed
+    import tools.scheduler_start
+    import tools.scheduler_stop
+    import tools.scheduler_status
+    import tools.scheduler_add_task
+    import tools.scheduler_remove_task
 
     tools.health.register(mcp)
     tools.transcribe.register(mcp)
@@ -52,3 +57,8 @@ def register_all(mcp):
     tools.queue_sync.register(mcp)
     tools.queue_deliver.register(mcp)
     tools.queue_clear_failed.register(mcp)
+    tools.scheduler_start.register(mcp)
+    tools.scheduler_stop.register(mcp)
+    tools.scheduler_status.register(mcp)
+    tools.scheduler_add_task.register(mcp)
+    tools.scheduler_remove_task.register(mcp)

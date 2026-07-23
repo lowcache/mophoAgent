@@ -92,13 +92,25 @@ async def notify(title: str, body: str) -> None:
 
 _router: QueryRouter | None = None
 _session: VoiceSession | None = None
+_detector: DisconnectionDetector | None = None
+
+
+def get_detector() -> DisconnectionDetector:
+    """Process-wide D9 ladder. Shared so the voice router and the Phase-7
+    scheduler agree on whether the laptop is reachable instead of probing it
+    twice with independently drifting state."""
+    global _detector
+    if _detector is None:
+        cfg = _laptop_config()
+        _detector = DisconnectionDetector(cfg["laptop_host"], cfg["laptop_ts_ip"])
+    return _detector
 
 
 def get_router() -> QueryRouter:
     global _router
     if _router is None:
         cfg = _laptop_config()
-        detector = DisconnectionDetector(cfg["laptop_host"], cfg["laptop_ts_ip"])
+        detector = get_detector()
         _router = QueryRouter(
             _NpuLocalModel(), detector, classifier=_NpuClassifier(),
             ollama_url=f"http://{cfg['laptop_host']}:11434/api/chat",

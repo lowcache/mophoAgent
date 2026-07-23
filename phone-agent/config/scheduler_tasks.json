@@ -1,0 +1,78 @@
+{
+  "_comment": "Default subconscious-scheduler tasks. Seeded into ~/.config/phone-agent/scheduler_tasks.json on first use; edit the INSTALLED copy (or use phone.scheduler.add_task) — this repo copy is only the seed. {laptop_host} and {ollama_port} are expanded from ~/.config/phone-agent/config.json at execution time.",
+  "tasks": [
+    {
+      "id": "flake_check",
+      "name": "Flake Update Check",
+      "description": "Poll the GitHub API for nixpkgs channel movement (no nix on the phone). Result is queued for the laptop agent.",
+      "trigger": { "type": "interval", "interval_hours": 6, "offset_minutes": 15 },
+      "action": {
+        "type": "shell",
+        "command": "curl -s --max-time 20 -H 'Accept: application/vnd.github+json' https://api.github.com/repos/NixOS/nixpkgs/commits/nixos-unstable | jq -r .sha",
+        "laptop_required": false,
+        "timeout_sec": 30
+      },
+      "conditions": { "battery_min_pct": 20, "wifi_only": true },
+      "notify_on": ["failure"],
+      "enabled": true
+    },
+    {
+      "id": "model_preload",
+      "name": "Ollama Model Preload",
+      "description": "List the laptop's Ollama models via its HTTP API (D3: no SSH). Skipped when the laptop is unreachable; the result is queued for its next wake.",
+      "trigger": { "type": "cron", "expression": "0 2 * * *" },
+      "action": {
+        "type": "shell",
+        "command": "curl -sf --max-time 10 http://{laptop_host}:{ollama_port}/api/tags",
+        "laptop_required": true,
+        "timeout_sec": 20
+      },
+      "conditions": { "battery_min_pct": 50, "charging_required": true, "wifi_only": true },
+      "notify_on": ["failure"],
+      "enabled": true
+    },
+    {
+      "id": "health_check",
+      "name": "Laptop Health Check",
+      "description": "Probe the laptop's Ollama HTTP endpoint to verify it is alive (the phone cannot MCP-call the laptop). Logs reachability.",
+      "trigger": { "type": "interval", "interval_minutes": 30 },
+      "action": {
+        "type": "shell",
+        "command": "curl -sf --max-time 5 http://{laptop_host}:{ollama_port}/api/version",
+        "laptop_required": true,
+        "timeout_sec": 15
+      },
+      "conditions": { "battery_min_pct": 10 },
+      "notify_on": [],
+      "enabled": true
+    },
+    {
+      "id": "log_cleanup",
+      "name": "Ingest Log Cleanup",
+      "description": "Remove ingest artifacts older than 30 days so storage does not creep.",
+      "trigger": { "type": "interval", "interval_days": 7 },
+      "action": {
+        "type": "shell",
+        "command": "find ~/ingest/processed -name '*.json' -mtime +30 -delete; find ~/ingest/audio -name '*.wav' -mtime +30 -delete; find ~/ingest/images -name '*.jpg' -mtime +30 -delete; echo cleaned",
+        "timeout_sec": 120
+      },
+      "conditions": { "battery_min_pct": 30 },
+      "notify_on": ["failure"],
+      "enabled": true
+    },
+    {
+      "id": "location_log",
+      "name": "Geofence Change Detect",
+      "description": "Sample coarse location every 15 minutes so the laptop agent can see geofence transitions.",
+      "trigger": { "type": "interval", "interval_minutes": 15 },
+      "action": {
+        "type": "sensor",
+        "tool": "phone.sensor.read_gps",
+        "params": { "timeout_sec": 3 }
+      },
+      "conditions": { "battery_min_pct": 25 },
+      "notify_on": [],
+      "enabled": true
+    }
+  ]
+}
