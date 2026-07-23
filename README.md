@@ -8,7 +8,7 @@ The endgame is a phone that behaves like an always-available extension of the la
 
 ## What it does today
 
-A single bearer-token-authenticated MCP endpoint (`Streamable HTTP`, port `8462`, bound to the Tailscale IP) serving **27 tools** across seven families:
+A single bearer-token-authenticated MCP endpoint (`Streamable HTTP`, port `8462`, bound to the Tailscale IP) serving **32 tools** across eight families:
 
 | Family | Tools | What they do |
 |---|---|---|
@@ -18,6 +18,7 @@ A single bearer-token-authenticated MCP endpoint (`Streamable HTTP`, port `8462`
 | **pipeline** | `run` | Composable processing pipelines (transcript, OCR, share-extract, summarize, embed) over captured/ingested content. |
 | **sensor** | `read_imu`, `read_modem`, `read_gps`, `read_light`, `read_proximity` | Motion (with on-device activity inference — *stationary / walking / …*), cellular+Wi-Fi state, location + geofencing, ambient light, and proximity. |
 | **voice** | `ask`, `start`, `stop` | One-shot voice cycle — (capture →) transcribe → route (local model vs laptop Ollama) → TTS. The wake-word listening session is experimental/opt-in. |
+| **scheduler** | `start`, `stop`, `status`, `add_task`, `remove_task` | The "subconscious" — an event loop that fires interval/cron/event tasks while the laptop sleeps, gating each on live battery, charging and Wi-Fi state, logging results and queueing them for the laptop's next sync. |
 | **queue** | `sync`, `deliver`, `clear_failed` | Offline autonomy — a durable on-disk priority queue that buffers outbound items when the laptop drops off the tailnet, with retry, ack, and manual retry/discard. The laptop pulls; the phone never pushes. |
 
 ## Architecture
@@ -41,8 +42,8 @@ Eight phases; each is self-contained, testable, and its own commit (see [`phoneA
 | 4 | Sensor tools | ✅ closed |
 | 5 | System tools | ✅ closed (laptop signed off; deployed live) |
 | 5.5 | Location-primitive prelude (fresh-fix GPS, accuracy gate, distance) | ✅ closed (additive diff reviewed sound) |
-| 6 | Voice AI + offline autonomy queue | 🟡 built + offline-verified (27 tools); operator live-gate + laptop sign-off pending |
-| 7 | Subconscious scheduler (runs tasks while the laptop sleeps) | ⬜ planned |
+| 6 | Voice AI + offline autonomy queue | ✅ closed (operator gate ALL PASS @ 27 tools; laptop signed off) |
+| 7 | Subconscious scheduler (runs tasks while the laptop sleeps) | 🟡 built + offline-verified (32 tools); operator live-gate + laptop sign-off pending |
 
 **Where it's heading:** Phase 6 adds an interactive voice session (wake word → local transcription → local-model-or-laptop routing → TTS) and an offline queue that buffers everything when the laptop drops off the tailnet. Phase 7 adds an event-driven scheduler — a "subconscious" that fires time- and event-based tasks on the phone and delivers results back when the laptop wakes. Location awareness is evolving toward a **dynamic geofence** where "home" is derived from wherever the laptop is currently operational (built for a user with no fixed location), rather than a hardcoded coordinate.
 
