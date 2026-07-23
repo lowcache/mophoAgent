@@ -11,7 +11,9 @@
 #   5. mic cycle   (interactive, ONLY with --mic: you speak, it transcribes)
 #
 # CANNOT be automated (do these by hand):
-#   - whether the TTS was AUDIBLE (the tool only returns that it ran)
+#   - final proof the TTS was AUDIBLE. The gate now probes it (voice.ask returns
+#     the speak result incl. elapsed_ms, and an exit-0-but-instant speak FAILS
+#     the gate) — but only your ears rule out a muted speaker on a real utterance.
 #   - seeing BOTH routing states — rerun once with laptop Ollama UP and once DOWN
 #   - the laptop's own verify.sh @ 27 + diff review
 #
@@ -125,9 +127,26 @@ resp=$(call phone.voice.ask '{"text":"what is two plus two"}')
 src=$(printf '%s' "$resp" | field source)
 err=$(printf '%s' "$resp" | field error)
 ans=$(printf '%s' "$resp" | field response)
+spk=$(printf '%s' "$resp" | field spoken)
 if [ "$src" = "local" ] && [ -z "$err" ] && [ -n "$ans" ]; then
-  ok "voice.ask text -> source=local, response=\"$ans\"  (listen: TTS should have spoken it)"
+  ok "voice.ask text -> source=local, response=\"$ans\""
 else bad "voice.ask text (source=$src err=$err response=\"$ans\")"; fi
+
+# TTS audibility probe: voice.ask now reports the speak result. An exit-0 with a
+# tiny elapsed_ms means the engine returned WITHOUT producing audio (media
+# volume 0 / DND / BT sink / wedged system TTS) — the known silent-TTS defect.
+info "tts result: $spk"
+case "$spk" in
+  *'"spoken": true'*|*'"spoken":true'*)
+    ms=$(printf '%s' "$spk" | sed -n 's/.*"elapsed_ms": *\([0-9]*\).*/\1/p')
+    if [ "${ms:-0}" -ge 700 ] 2>/dev/null; then
+      ok "tts spoke (elapsed_ms=$ms — consistent with real playback; you should have HEARD it)"
+    else
+      bad "tts returned OK but in ${ms}ms — too fast to be real speech (SILENT-TTS defect: check media volume / DND / BT sink / system TTS engine)"
+    fi ;;
+  "") bad "tts result missing (old server code deployed? redeploy and bounce)" ;;
+  *)  bad "tts did not speak: $spk" ;;
+esac
 
 info "check: voice.start / voice.stop"
 resp=$(call phone.voice.start '{}')
@@ -188,5 +207,5 @@ fi
 
 echo
 if [ "$FAIL" -eq 0 ]; then echo "PHASE-6 GATE: ALL PASS ($BASE)"; else echo "PHASE-6 GATE: $FAIL FAILURE(S) ($BASE)"; fi
-echo "MANUAL remaining: (1) did you HEAR the TTS?  (2) rerun with Ollama UP and DOWN for both routes  (3) laptop: scripts/verify.sh $BASE"
+echo "MANUAL remaining: (1) did you HEAR the TTS? (the gate now fails an instant/errored speak, but not a muted speaker)  (2) rerun with Ollama UP and DOWN for both routes  (3) laptop: scripts/verify.sh $BASE"
 exit "$FAIL"

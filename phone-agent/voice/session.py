@@ -60,16 +60,23 @@ class VoiceSession:
 
             self.state = SPEAKING
             # Speaking is best-effort: the response is already produced, so a
-            # slow/wedged TTS must not hold the call open or fail the cycle.
-            # (tts.speak already caps to a short preview; this bounds it anyway.)
+            # slow/wedged/broken TTS must not hold the call open or lose the
+            # answer. (tts.speak already caps to a short preview; this bounds
+            # it anyway.) The result is kept so callers can tell "spoke" from
+            # "silently failed" without a listening test.
             try:
-                await asyncio.wait_for(self.tts.speak(response),
-                                       self.state_timeout_sec)
+                spoken = await asyncio.wait_for(self.tts.speak(response),
+                                                self.state_timeout_sec)
             except asyncio.TimeoutError:
-                pass
+                spoken = {"spoken": False, "error": "TTS_TIMEOUT",
+                          "message": f"speak exceeded {self.state_timeout_sec:.0f}s"}
+            except Exception as e:
+                spoken = {"spoken": False, "error": "TTS_FAILED",
+                          "message": str(e)[:200]}
 
             self.state = IDLE
-            return {"response": response, "source": source, "transcript": text}
+            return {"response": response, "source": source, "transcript": text,
+                    "spoken": spoken}
 
         except asyncio.TimeoutError:
             self.state = IDLE

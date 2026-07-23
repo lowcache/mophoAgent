@@ -10,7 +10,10 @@ def register(mcp):
         """Run one voice cycle. With `text`: route then speak. With
         `audio_path`: transcribe -> route -> speak. With neither: record ~15s
         -> transcribe -> route -> speak. Returns response, source
-        (local | laptop | local_offline), and transcript. Errors:
+        (local | laptop | local_offline), transcript, and spoken — the TTS
+        result {spoken, chars, truncated, elapsed_ms} or {spoken: false,
+        error: TTS_*}, so a silent failure is visible without listening.
+        Errors:
         NO_AUDIO_SOURCE, NO_TRANSCRIBER, VOICE_TIMEOUT, VOICE_FAILED, plus any
         capture error (MICROPHONE_BUSY, VAD_TIMEOUT, ...) surfaced verbatim."""
         try:

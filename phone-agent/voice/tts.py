@@ -10,6 +10,7 @@ full.
 
 import asyncio
 import subprocess
+import time
 
 _DEFAULT_MAX_SPEAK_CHARS = 350
 
@@ -44,10 +45,18 @@ class TTSEngine:
         finishes. Only a preview of at most ~max_chars (engine default 350) is
         spoken so a long answer is not read in full — the caller still returns
         the whole response. Returns {"spoken": True, "chars": <spoken>,
-        "truncated": <bool>}. Errors: TTS_EMPTY, TTS_UNAVAILABLE
-        (termux-tts-speak not installed), TTS_TIMEOUT, TTS_FAILED."""
+        "truncated": <bool>, "elapsed_ms": <int>}. Errors carry "spoken": False:
+        TTS_EMPTY, TTS_UNAVAILABLE (termux-tts-speak not installed), TTS_TIMEOUT,
+        TTS_FAILED.
+
+        elapsed_ms is a silence probe: termux-tts-speak can exit 0 without
+        producing audio (media volume 0, DND, a BT sink stealing the route, a
+        wedged system engine). Real playback of a sentence takes seconds — an
+        exit-0 with elapsed_ms in the low hundreds means the engine returned
+        without speaking."""
         if not text or not text.strip():
-            return {"error": "TTS_EMPTY", "message": "nothing to speak"}
+            return {"spoken": False, "error": "TTS_EMPTY",
+                    "message": "nothing to speak"}
 
         limit = self.max_chars if max_chars is None else max_chars
         spoken, truncated = truncate_for_speech(text, limit)
@@ -59,16 +68,20 @@ class TTSEngine:
             return subprocess.run(cmd, input=spoken.encode(),
                                   capture_output=True, timeout=timeout_sec)
 
+        t0 = time.monotonic()
         try:
             proc = await asyncio.to_thread(_run)
         except FileNotFoundError:
-            return {"error": "TTS_UNAVAILABLE",
+            return {"spoken": False, "error": "TTS_UNAVAILABLE",
                     "message": "termux-tts-speak not found (pkg install termux-api)"}
         except subprocess.TimeoutExpired:
-            return {"error": "TTS_TIMEOUT",
+            return {"spoken": False, "error": "TTS_TIMEOUT",
                     "message": f"tts exceeded {timeout_sec:.0f}s"}
+        elapsed_ms = int((time.monotonic() - t0) * 1000)
         if proc.returncode != 0:
             detail = (proc.stderr.decode(errors="replace").strip()[:200]
                       or f"termux-tts-speak exited {proc.returncode}")
-            return {"error": "TTS_FAILED", "message": detail}
-        return {"spoken": True, "chars": len(spoken), "truncated": truncated}
+            return {"spoken": False, "error": "TTS_FAILED", "message": detail,
+                    "elapsed_ms": elapsed_ms}
+        return {"spoken": True, "chars": len(spoken), "truncated": truncated,
+                "elapsed_ms": elapsed_ms}
