@@ -14,7 +14,7 @@ INGEST_BASE = INGEST_DIR
 
 SUBDIRS = ["audio", "images", "screenshots", "shares", "shares/spool",
            "processed/transcripts", "processed/ocr", "processed/summaries",
-           "processed/scheduled", "staged",
+           "processed/scheduled", "staged", "staged-delivered",
            "queue/pending", "queue/delivering", "queue/delivered",
            "queue/failed", "errors"]
 
